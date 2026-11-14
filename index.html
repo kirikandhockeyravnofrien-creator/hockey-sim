@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Hockey Sim</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <section id="screen-menu" class="screen">
+  <h1>HOCKEY SIM</h1>
+  <button class="menu-btn" data-go="teams">КОМАНДЫ</button>
+  <button class="menu-btn" data-go="quick">БЫСТРЫЙ МАТЧ</button>
+  <button class="menu-btn" data-go="tournaments">ТУРНИРЫ</button>
+  <div class="account">
+    <span id="acc-email"></span>
+    <span id="sync-status"></span>
+    <button id="btn-logout">Выйти</button>
+  </div>
+</section>
+
+<section id="screen-auth" class="screen active">
+  <h1>HOCKEY SIM</h1>
+  <p id="auth-loading" class="placeholder">Загрузка…</p>
+  <div id="auth-form" style="display:none">
+    <label>Email</label>
+    <input id="au-email" type="email" autocomplete="username" autocapitalize="none" placeholder="name@mail.com">
+    <label>Пароль (минимум 6 символов)</label>
+    <input id="au-pass" type="password" autocomplete="current-password">
+    <p id="au-msg" class="auth-msg"></p>
+    <button class="menu-btn full" id="btn-login">ВОЙТИ</button>
+    <button class="menu-btn full sim-btn" id="btn-register">РЕГИСТРАЦИЯ</button>
+    <button class="linkbtn" id="btn-reset">Забыли пароль?</button>
+  </div>
+</section>
+    </section>
+
+    <section id="screen-teams" class="screen">
+  <header><button class="back" data-go="menu">‹</button><h2>КОМАНДЫ</h2></header>
+  <div id="team-list"></div>
+  <button class="menu-btn add-btn" id="btn-new-team">+ НОВАЯ КОМАНДА</button>
+</section>
+
+<section id="screen-team-edit" class="screen">
+  <header><button class="back" data-go="teams">‹</button><h2>НОВАЯ КОМАНДА</h2></header>
+  <div id="emblem-preview" class="emblem-preview"></div>
+  <label>Название клуба</label>
+  <input id="team-name" type="text" maxlength="24" placeholder="Например, Ак Барс">
+  <label>Рейтинг: <b id="rating-value">75</b></label>
+  <input id="team-rating" type="range" min="50" max="99" value="75">
+  <label>Эмблема</label>
+  <div id="icon-grid" class="grid"></div>
+  <label>Цвет</label>
+  <div id="color-grid" class="grid"></div>
+  <button class="menu-btn" id="btn-save-team">СОХРАНИТЬ</button>
+</section>
+
+    <section id="screen-quick" class="screen">
+  <header><button class="back" data-go="menu">‹</button><h2>БЫСТРЫЙ МАТЧ</h2></header>
+  <p id="qm-warn" class="placeholder" style="display:none"></p>
+  <div class="qm-teams">
+    <div class="qm-card" id="qm-home"></div>
+    <div class="qm-vs">VS</div>
+    <div class="qm-card" id="qm-away"></div>
+  </div>
+  <button class="menu-btn full" id="btn-quick-instant">БЫСТРЫЙ МАТЧ</button>
+  <button class="menu-btn full sim-btn" id="btn-quick-sim">СИМУЛЯЦИЯ</button>
+</section>
+
+<section id="screen-match" class="screen">
+  <header><button class="back" id="match-back">‹</button><h2>МАТЧ</h2></header>
+  <div class="scoreboard">
+    <div class="sb-team" id="sb-home"></div>
+    <div class="sb-mid">
+      <div class="sb-score"><span id="sb-hg">0</span> : <span id="sb-ag">0</span></div>
+      <div class="sb-period" id="sb-period">1st</div>
+      <div class="sb-clock" id="sb-clock">20:00</div>
+    </div>
+    <div class="sb-team" id="sb-away"></div>
+  </div>
+  <div class="speed" id="speed-box">
+    <button data-speed="10">Медленно</button>
+    <button data-speed="40" class="active">Средне</button>
+    <button data-speed="120">Быстро</button>
+    <button id="btn-skip">Пропустить</button>
+  </div>
+  <div id="match-stats"></div>
+  <div id="match-log" class="log"></div>
+</section>
+
+<div id="picker" class="overlay">
+  <header><button class="back" id="picker-close">✕</button><h2>ВЫБОР КОМАНДЫ</h2></header>
+  <div id="picker-list"></div>
+</div>
+
+    <section id="screen-tournaments" class="screen">
+  <header><button class="back" data-go="menu">‹</button><h2>ТУРНИРЫ</h2></header>
+  <div id="tour-list"></div>
+  <button class="menu-btn add-btn" id="btn-new-tour">+ НОВЫЙ ТУРНИР</button>
+</section>
+
+<section id="screen-tournament-edit" class="screen">
+  <header><button class="back" data-go="tournaments">‹</button><h2>НОВЫЙ ТУРНИР</h2></header>
+  <div id="te-emblem" class="emblem-preview"></div>
+  <label>Название турнира</label>
+  <input id="te-name" type="text" maxlength="28" placeholder="Например, Кубок Гагарина">
+  <label>Эмблема</label>
+  <div id="te-icons" class="grid"></div>
+  <label>Цвет</label>
+  <div id="te-colors" class="grid"></div>
+  <label>Количество туров</label>
+  <input id="te-tours" type="number" inputmode="numeric" min="1" max="200" value="10">
+  <label>Очков за победу</label>
+  <div class="seg" id="te-pts">
+    <button data-v="2">2 очка</button>
+    <button data-v="3" class="active">3 очка</button>
+  </div>
+  <label>Формат таблицы</label>
+  <div class="seg" id="te-format">
+    <button data-v="league" class="active">ВСЯ ЛИГА</button>
+    <button data-v="conf">КОНФЕРЕНЦИИ</button>
+  </div>
+  <label>Команды <button class="mini" id="te-all">Выбрать всех</button></label>
+  <div id="te-teams"></div>
+  <button class="menu-btn full" id="btn-create-tour" style="background:#2a9d8f">СОЗДАТЬ ТУРНИР</button>
+  <div style="height:24px"></div>
+</section>
+
+<section id="screen-tournament" class="screen">
+  <header><button class="back" data-go="tournaments">‹</button><h2 id="tv-title">ТУРНИР</h2></header>
+  <div id="tv-banner" class="banner"></div>
+  <div class="seg" id="tv-tabs">
+    <button data-v="table" class="active">ТАБЛИЦА</button>
+    <button data-v="matches">МАТЧИ</button>
+  </div>
+  <div id="tv-table"></div>
+  <div id="tv-matches" style="display:none">
+    <div class="tour-nav">
+      <button id="tour-prev">‹</button><b id="tour-label"></b><button id="tour-next">›</button>
+    </div>
+    <div id="tour-games"></div>
+  </div>
+  <div class="actions">
+    <button class="menu-btn" id="btn-play-tour">СЫГРАТЬ ТУР</button>
+    <button class="menu-btn" id="btn-play-all">СЫГРАТЬ ВСЁ</button>
+  </div>
+</section>
+
+  </div>
+  <script src="engine.js"></script>
+<script src="app.js"></script>
+  <script src="app.js"></script>
+  <script src="engine.js"></script>
+<script src="app.js"></script>
+<script type="module" src="cloud.js"></script>
+</body>
+</html>
