@@ -10,8 +10,8 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Pro Hockey Sim">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#0d1b2a">
-  <link rel="stylesheet" href="style.css">
+  <meta name="theme-color" content="#000000">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <div id="app">
@@ -26,6 +26,8 @@
         <span id="acc-email"></span>
         <span id="sync-status"></span>
         <button id="btn-logout">Выйти</button>
+        <span id="app-ver"></span>
+        <button id="btn-refresh">Обновить игру</button>
       </div>
     </section>
 
@@ -39,8 +41,8 @@
         <label>Пароль (минимум 6 символов)</label>
         <input id="au-pass" type="password" autocomplete="current-password">
         <p id="au-msg" class="auth-msg"></p>
-        <button class="menu-btn full" id="btn-login">ВОЙТИ</button>
-        <button class="menu-btn full sim-btn" id="btn-register">РЕГИСТРАЦИЯ</button>
+        <button class="menu-btn full primary" id="btn-login">ВОЙТИ</button>
+        <button class="menu-btn full" id="btn-register">РЕГИСТРАЦИЯ</button>
         <button class="linkbtn" id="btn-reset">Забыли пароль?</button>
       </div>
     </section>
@@ -53,7 +55,7 @@
         <button data-v="national">СБОРНЫЕ</button>
       </div>
       <div id="team-list" style="margin-top:14px"></div>
-      <button class="menu-btn add-btn" id="btn-new-team">+ НОВЫЙ КЛУБ</button>
+      <button class="menu-btn add-btn primary" id="btn-new-team">+ НОВЫЙ КЛУБ</button>
     </section>
 
     <!-- КОМАНДЫ: создание -->
@@ -77,7 +79,7 @@
       <div id="icon-grid" class="grid"></div>
       <label>Цвет</label>
       <div id="color-grid" class="grid"></div>
-      <button class="menu-btn" id="btn-save-team">СОХРАНИТЬ</button>
+      <button class="menu-btn primary" id="btn-save-team">СОХРАНИТЬ</button>
     </section>
 
     <!-- БЫСТРЫЙ МАТЧ -->
@@ -90,7 +92,7 @@
         <div class="qm-card" id="qm-away"></div>
       </div>
       <button class="menu-btn full" id="btn-quick-instant">БЫСТРЫЙ МАТЧ</button>
-      <button class="menu-btn full sim-btn" id="btn-quick-sim">СИМУЛЯЦИЯ</button>
+      <button class="menu-btn full primary" id="btn-quick-sim">СИМУЛЯЦИЯ</button>
     </section>
 
     <!-- МАТЧ -->
@@ -119,7 +121,7 @@
     <section id="screen-tournaments" class="screen">
       <header><button class="back" data-go="menu">‹</button><h2>ТУРНИРЫ</h2></header>
       <div id="tour-list"></div>
-      <button class="menu-btn add-btn" id="btn-new-tour">+ НОВЫЙ ТУРНИР</button>
+      <button class="menu-btn add-btn primary" id="btn-new-tour">+ НОВЫЙ ТУРНИР</button>
     </section>
 
     <!-- ТУРНИРЫ: создание -->
@@ -163,7 +165,7 @@
         <button data-v="national">СБОРНЫЕ</button>
       </div>
       <div id="te-teams" style="margin-top:12px"></div>
-      <button class="menu-btn full" id="btn-create-tour" style="background:#2a9d8f">СОЗДАТЬ ТУРНИР</button>
+      <button class="menu-btn full primary" id="btn-create-tour">СОЗДАТЬ ТУРНИР</button>
       <div style="height:24px"></div>
     </section>
 
@@ -199,8 +201,8 @@
     </div>
 
   </div>
-  <script src="engine.js"></script>
-  <script src="app.js"></script>
+  <script src="engine.js?v=3"></script>
+  <script src="app.js?v=3"></script>
   <script type="module" src="cloud.js"></script>
 </body>
 </html>
