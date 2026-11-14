@@ -1,6 +1,6 @@
 {
-  "name": "Hockey Sim",
-  "short_name": "Hockey Sim",
+  "name": "Pro Hockey Sim",
+  "short_name": "Pro Hockey Sim",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -8,7 +8,7 @@ body {
 .screen { display: none; }
 .screen.active { display: block; }
 #screen-menu.active { display: flex; flex-direction: column; justify-content: center; gap: 16px; min-height: 90vh; }
-h1 { text-align: center; font-size: 34px; letter-spacing: 3px; margin-bottom: 24px; }
+h1 { text-align: center; font-size: clamp(24px, 8vw, 34px); letter-spacing: 2px; margin-bottom: 24px; white-space: nowrap; }
 .menu-btn {
   padding: 20px; font-size: 20px; font-weight: 700; letter-spacing: 1px;
   background: #1b4965; color: #fff; border: none; border-radius: 14px;
@@ -17,26 +17,44 @@ h1 { text-align: center; font-size: 34px; letter-spacing: 3px; margin-bottom: 24
 header { display: flex; align-items: center; gap: 12px; padding: 16px 0; }
 .back { font-size: 32px; background: none; border: none; color: #fff; padding: 0 8px; }
 .placeholder { opacity: .6; text-align: center; margin-top: 40px; }
+
+/* Формы */
 label { display: block; margin: 18px 0 8px; opacity: .8; }
-input[type="text"] {
+input[type="text"], input[type="number"], input[type="email"], input[type="password"], select {
   width: 100%; padding: 14px; font-size: 17px; border-radius: 10px;
   border: none; background: #1b263b; color: #fff;
 }
+select option { background: #1b263b; color: #fff; }
 input[type="range"] { width: 100%; }
 .add-btn { width: 100%; margin-top: 16px; background: #2a9d8f; }
 #btn-save-team { width: 100%; margin: 24px 0; background: #2a9d8f; }
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+.upload-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+label.upload-btn {
+  display: inline-block; margin: 0; opacity: 1; padding: 12px 16px; font-weight: 600;
+  background: #1b4965; border-radius: 10px; cursor: pointer; font-size: 15px;
+}
+.mini { margin-left: 8px; padding: 4px 10px; border: none; border-radius: 8px; background: #1b263b; color: #fff; font-size: 12px; }
+.upload-row .mini { margin-left: 0; padding: 10px 12px; font-size: 13px; }
+
+/* Команды и эмблемы */
 .team-row {
   display: flex; align-items: center; gap: 12px;
   background: #1b263b; padding: 12px; border-radius: 12px; margin-bottom: 10px;
 }
-.team-row .info { flex: 1; }
+.team-row.wrap { flex-wrap: wrap; }
+.trow-top { display: flex; align-items: center; gap: 12px; width: 100%; }
+.team-row .info { flex: 1; min-width: 0; }
 .team-row .name { font-weight: 700; font-size: 17px; }
 .team-row .rating { opacity: .7; font-size: 14px; }
+.tag { display: inline-block; font-size: 10px; letter-spacing: .5px; padding: 2px 6px; border-radius: 6px; background: #2b3a55; margin-left: 6px; vertical-align: middle; opacity: .85; }
 .del { background: none; border: none; font-size: 22px; padding: 6px; }
 .emblem {
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%; flex-shrink: 0;
 }
+.emblem.img { border-radius: 22%; overflow: hidden; background: #fff; }
+.emblem img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .emblem-preview { display: flex; justify-content: center; margin: 8px 0; }
 .grid { display: flex; flex-wrap: wrap; gap: 10px; }
 .pick {
@@ -45,13 +63,18 @@ input[type="range"] { width: 100%; }
   font-size: 24px; background: #1b263b; cursor: pointer;
 }
 .pick.selected { border-color: #fff; }
+.team-row.sel { outline: 2px solid #2a9d8f; }
+.pick-row { cursor: pointer; }
+.pick-row.disabled { opacity: .35; }
+
+/* Быстрый матч */
 .full { width: 100%; margin-top: 14px; }
 .sim-btn { background: #2a9d8f; }
 .qm-teams { display: flex; align-items: center; gap: 8px; margin: 20px 0 10px; }
 .qm-card {
   flex: 1; background: #1b263b; border-radius: 14px; padding: 14px 8px; text-align: center;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 8px; min-height: 170px; cursor: pointer;
+  gap: 8px; min-height: 170px; cursor: pointer; min-width: 0;
 }
 .qm-title { opacity: .6; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; }
 .qm-vs { font-weight: 700; opacity: .6; }
@@ -69,30 +92,27 @@ input[type="range"] { width: 100%; }
 .log-line { padding: 8px 10px; border-radius: 8px; background: #1b263b; margin-bottom: 6px; font-size: 14px; }
 .log-line.goal { border-left: 4px solid #f39c12; }
 .log-line.so { border-left: 4px solid #62b6cb; }
-.periods { display: flex; justify-content: center; gap: 14px; margin: 16px 0 8px; opacity: .85; font-size: 14px; }
+.periods { display: flex; justify-content: center; gap: 14px; margin: 16px 0 8px; opacity: .85; font-size: 14px; flex-wrap: wrap; }
 .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 6px; border-bottom: 1px solid #1b263b; }
 .stat-row b { width: 60px; text-align: center; font-size: 17px; }
 .stat-row span { opacity: .7; font-size: 14px; }
 .overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 10; display: none;
+  position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 10; display: none;
   padding: calc(env(safe-area-inset-top) + 16px) 16px 16px; overflow-y: auto;
 }
 .overlay.open { display: block; }
-.pick-row { cursor: pointer; }
-.pick-row.disabled { opacity: .35; }
-input[type="number"] {
-  width: 100%; padding: 14px; font-size: 17px; border-radius: 10px;
-  border: none; background: #1b263b; color: #fff;
-}
+
+/* Турниры */
 .seg { display: flex; gap: 6px; }
 .seg button {
   flex: 1; padding: 12px 4px; border: none; border-radius: 10px;
   background: #1b263b; color: #fff; font-size: 14px; font-weight: 600;
 }
 .seg button.active { background: #1b4965; outline: 2px solid #62b6cb; }
-.mini { margin-left: 8px; padding: 4px 10px; border: none; border-radius: 8px; background: #1b263b; color: #fff; font-size: 12px; }
-.team-row.sel { outline: 2px solid #2a9d8f; }
-.conf-btn { border: none; border-radius: 8px; padding: 8px 10px; background: #1b4965; color: #fff; font-size: 12px; font-weight: 700; }
+.conf-names { display: flex; gap: 8px; }
+.conf-seg { display: flex; gap: 6px; width: 100%; }
+.conf-btn { flex: 1; border: none; border-radius: 8px; padding: 10px 4px; background: #243447; color: #fff; font-size: 13px; font-weight: 700; }
+.conf-btn.on { background: #2a9d8f; }
 .banner { display: none; background: #f39c12; color: #000; border-radius: 10px; padding: 10px; text-align: center; font-weight: 700; margin: 8px 0; }
 table.std { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; }
 table.std th { opacity: .6; font-weight: 600; padding: 6px 2px; }
@@ -117,10 +137,7 @@ table.std .tn span { overflow: hidden; text-overflow: ellipsis; white-space: now
 .actions .menu-btn { flex: 1; font-size: 15px; padding: 16px 4px; }
 .actions .menu-btn:disabled { opacity: .35; }
 
-input[type="email"], input[type="password"] {
-  width: 100%; padding: 14px; font-size: 17px; border-radius: 10px;
-  border: none; background: #1b263b; color: #fff;
-}
+/* Вход */
 .auth-msg { color: #ff6b6b; min-height: 22px; margin-top: 10px; font-size: 14px; }
 .linkbtn { display: block; margin: 18px auto 0; background: none; border: none; color: #62b6cb; font-size: 15px; }
 .account { margin-top: 28px; text-align: center; font-size: 13px; opacity: .7; display: flex; flex-direction: column; gap: 6px; align-items: center; }
