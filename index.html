@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Pro Hockey Sim">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#000000">
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <div id="app">
@@ -122,13 +122,18 @@
       <header><button class="back" data-go="menu">‹</button><h2>ТУРНИРЫ</h2></header>
       <div id="tour-list"></div>
       <button class="menu-btn add-btn primary" id="btn-new-tour">+ НОВЫЙ ТУРНИР</button>
+      <button class="menu-btn add-btn" id="btn-new-playoff">+ ПЛЕЙ-ОФФ</button>
     </section>
 
     <!-- ТУРНИРЫ: создание -->
     <section id="screen-tournament-edit" class="screen">
-      <header><button class="back" data-go="tournaments">‹</button><h2>НОВЫЙ ТУРНИР</h2></header>
+      <header><button class="back" data-go="tournaments">‹</button><h2 id="te-title">НОВЫЙ ТУРНИР</h2></header>
+      <div class="seg" id="te-kind">
+        <button data-v="tournament" class="active">ТУРНИР</button>
+        <button data-v="playoff">ПЛЕЙ-ОФФ</button>
+      </div>
       <div id="te-emblem" class="emblem-preview"></div>
-      <label>Название турнира</label>
+      <label>Название</label>
       <input id="te-name" type="text" maxlength="28" placeholder="Например, Кубок Гагарина">
       <label>Эмблема</label>
       <div class="upload-row">
@@ -139,14 +144,27 @@
       <div id="te-icons" class="grid"></div>
       <label>Цвет</label>
       <div id="te-colors" class="grid"></div>
-      <label>Количество туров</label>
-      <input id="te-tours" type="number" inputmode="numeric" min="1" max="200" value="10">
-      <label>Очков за победу</label>
-      <div class="seg" id="te-pts">
-        <button data-v="2">2 очка</button>
-        <button data-v="3" class="active">3 очка</button>
+
+      <div id="sec-preset">
+        <label>Предустановка</label>
+        <div class="seg" id="te-preset">
+          <button data-v="custom" class="active">СВОЙ ТУРНИР</button>
+          <button data-v="khl">КХЛ</button>
+        </div>
+        <p class="note" id="preset-note"></p>
       </div>
-      <label>Формат таблицы</label>
+
+      <div id="sec-tours">
+        <label>Количество туров</label>
+        <input id="te-tours" type="number" inputmode="numeric" min="1" max="400" value="10">
+        <label>Очков за победу</label>
+        <div class="seg" id="te-pts">
+          <button data-v="2">2 очка</button>
+          <button data-v="3" class="active">3 очка</button>
+        </div>
+      </div>
+
+      <label id="lbl-format">Формат таблицы</label>
       <div class="seg" id="te-format">
         <button data-v="league" class="active">ВСЯ ЛИГА</button>
         <button data-v="conf">КОНФЕРЕНЦИИ</button>
@@ -159,6 +177,30 @@
         </div>
         <p class="note" id="conf-count"></p>
       </div>
+
+      <div id="sec-po">
+        <div id="po-toggle-box">
+          <label>Плей-офф после сезона</label>
+          <div class="seg" id="te-po">
+            <button data-v="off" class="active">НЕТ</button>
+            <button data-v="on">ЕСТЬ</button>
+          </div>
+        </div>
+        <div id="po-opts" style="display:none">
+          <div id="po-n-box">
+            <label id="lbl-po-n">Сколько команд выходит в плей-офф</label>
+            <input id="te-po-n" type="number" inputmode="numeric" min="2" max="64" value="8">
+          </div>
+          <label>Серия</label>
+          <div class="seg" id="te-bo">
+            <button data-v="1">1 матч</button>
+            <button data-v="3">до 2 побед</button>
+            <button data-v="5">до 3 побед</button>
+            <button data-v="7" class="active">до 4 побед</button>
+          </div>
+        </div>
+      </div>
+
       <label>Команды <button class="mini" id="te-all">Выбрать всех</button></label>
       <div class="seg" id="te-tabs">
         <button data-v="club" class="active">КЛУБЫ</button>
@@ -174,8 +216,9 @@
       <header><button class="back" data-go="tournaments">‹</button><h2 id="tv-title">ТУРНИР</h2></header>
       <div id="tv-banner" class="banner"></div>
       <div class="seg" id="tv-tabs">
-        <button data-v="table" class="active">ТАБЛИЦА</button>
-        <button data-v="matches">МАТЧИ</button>
+        <button id="tvtab-table" data-v="table" class="active">ТАБЛИЦА</button>
+        <button id="tvtab-matches" data-v="matches">МАТЧИ</button>
+        <button id="tvtab-playoff" data-v="playoff">ПЛЕЙ-ОФФ</button>
       </div>
       <div id="tv-table"></div>
       <div id="tv-matches" style="display:none">
@@ -184,9 +227,14 @@
         </div>
         <div id="tour-games"></div>
       </div>
-      <div class="actions">
+      <div id="tv-playoff" style="display:none"><div id="po-view"></div></div>
+      <div class="actions" id="actions-season">
         <button class="menu-btn" id="btn-play-tour">СЫГРАТЬ ТУР</button>
         <button class="menu-btn" id="btn-play-all">СЫГРАТЬ ВСЁ</button>
+      </div>
+      <div class="actions" id="actions-po" style="display:none">
+        <button class="menu-btn" id="btn-po-round">СЫГРАТЬ РАУНД</button>
+        <button class="menu-btn" id="btn-po-all">СЫГРАТЬ ВСЁ</button>
       </div>
     </section>
 
@@ -201,8 +249,8 @@
     </div>
 
   </div>
-  <script src="engine.js?v=3"></script>
-  <script src="app.js?v=3"></script>
+  <script src="engine.js?v=4"></script>
+  <script src="app.js?v=4"></script>
   <script type="module" src="cloud.js"></script>
 </body>
 </html>

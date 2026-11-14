@@ -181,3 +181,24 @@ table.std .tn span { overflow: hidden; text-overflow: ellipsis; white-space: now
 /* ---------- Аккаунт ---------- */
 .account { margin-top: 28px; text-align: center; font-size: 13px; color: var(--text2); display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .account button { border-radius: 999px; padding: 8px 20px; font-size: 13px; }
+
+/* ---------- Плей-офф, подсветка, блокировка ---------- */
+.locked { pointer-events: none; opacity: .5; }
+input:disabled { opacity: .5; }
+table.std tr.po-in td { background: rgba(52,199,89,.10); }
+table.std tr.po-in td:first-child { box-shadow: inset 3px 0 0 #34c759; color: #34c759; font-weight: 700; }
+table.std tr.po-cut td { border-top: 1px dashed rgba(255,255,255,.55); }
+.po-dot { color: #34c759; }
+table.std th:nth-child(n+3), table.std td:nth-child(n+3) { white-space: nowrap; padding-left: 4px; padding-right: 4px; }
+.round-title { margin: 16px 0 8px; font-size: 13px; letter-spacing: 1px; color: var(--text2); text-transform: uppercase; }
+.series { background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border: 1px solid var(--edge); box-shadow: var(--shine), var(--drop); border-radius: 22px; padding: 10px 12px; margin-bottom: 10px; }
+.s-team { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.s-team + .s-team { border-top: 1px solid rgba(255,255,255,.08); }
+.s-name { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-name i { font-style: normal; font-size: 11px; color: var(--text2); margin-right: 6px; }
+.s-name.tbd { color: var(--text2); font-weight: 400; }
+.s-team b { font-size: 20px; min-width: 22px; text-align: center; }
+.s-team.lose { opacity: .45; }
+.s-team.win .s-name { color: #fff; }
+.s-games { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.08); font-size: 12px; color: var(--text2); line-height: 1.6; }
+.series .gbtn button { font-size: 12px; }
