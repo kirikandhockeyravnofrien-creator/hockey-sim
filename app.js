@@ -4,10 +4,8 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-const APP_VERSION = '4';
+const APP_VERSION = '5';
 
-// Показывать ли флаги в карточках матчей турнира (по умолчанию нет)
-const SHOW_FLAG_IN_FIXTURES = false;
 
 // ---------- Хранилище ----------
 const Store = {
@@ -78,25 +76,37 @@ const COUNTRIES = [
 const flagEmoji = code =>
   String.fromCodePoint(...[...code].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
 const flagOf = t => (t && t.country) ? flagEmoji(t.country) : '';
-const labelOf = t => (flagOf(t) ? flagOf(t) + ' ' : '') + t.name;   // название с флагом (текст)
-const labelHTML = t => esc(labelOf(t));
+// Название БЕЗ флага: матчи, табло, таблицы, плей-офф
+const nameHTML = t => esc(t.name);
+// Название СО флагом справа: только списки команд («КОМАНДЫ», выбор команды)
+const listNameHTML = t => esc(t.name) + (flagOf(t) ? ` <span class="flag">${flagOf(t)}</span>` : '');
 
-// Картинка из галереи: вписываем в квадрат 120x120 и сжимаем (чтобы данные были лёгкими)
+// Картинка из галереи: вписываем в квадрат 96x96 и сохраняем как PNG (прозрачность сохраняется).
+// Заодно считаем «цвет команды» — средний цвет логотипа (он нужен для таблицы).
 function readImage(file, cb) {
   const r = new FileReader();
   r.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const S = 120;
+      const S = 96;
       const c = document.createElement('canvas');
       c.width = c.height = S;
       const g = c.getContext('2d');
-      g.fillStyle = '#ffffff';
-      g.fillRect(0, 0, S, S);
       const k = Math.min(S / img.width, S / img.height);
       const w = img.width * k, h = img.height * k;
       g.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
-      cb(c.toDataURL('image/jpeg', 0.8));
+      let color = '#5a5a64';
+      try {
+        const d = g.getImageData(0, 0, S, S).data;
+        let R = 0, G = 0, B = 0, n = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 128) continue;                        // прозрачное пропускаем
+          if (d[i] > 235 && d[i + 1] > 235 && d[i + 2] > 235) continue;   // почти белое пропускаем
+          R += d[i]; G += d[i + 1]; B += d[i + 2]; n++;
+        }
+        if (n > 20) color = '#' + [R, G, B].map(v => Math.round(v / n).toString(16).padStart(2, '0')).join('');
+      } catch (e) { /* без цвета обойдёмся */ }
+      cb(c.toDataURL('image/png'), color);
     };
     img.onerror = () => alert('Не удалось открыть изображение');
     img.src = r.result;
@@ -130,7 +140,7 @@ function renderTeams() {
     <div class="team-row pick-row" data-edit="${t.id}">
       ${emblemHTML(t.emblem)}
       <div class="info">
-        <div class="name">${labelHTML(t)}</div>
+        <div class="name">${listNameHTML(t)}</div>
         <div class="rating">Рейтинг: ${t.rating}</div>
       </div>
       <button class="del" data-del="${t.id}">🗑️</button>
@@ -151,7 +161,7 @@ function renderTeams() {
 bindSeg('teams-tabs', v => { teamsTab = v; renderTeams(); });
 
 // ---------- Создание команды ----------
-const newDraft = () => ({ icon: ICONS[0], color: COLORS[0], img: null });
+const newDraft = () => ({ icon: ICONS[0], color: COLORS[0], img: null, imgColor: null });
 let draft = newDraft();
 let editingId = null;      // id редактируемой команды (null — создаём новую)
 let editorKind = 'club';   // тип команды в форме
@@ -175,7 +185,7 @@ function renderPickers() {
 $('team-img').addEventListener('change', e => {
   const f = e.target.files[0];
   e.target.value = '';
-  if (f) readImage(f, url => { draft.img = url; renderPickers(); });
+  if (f) readImage(f, (url, col) => { draft.img = url; draft.imgColor = col; renderPickers(); });
 });
 $('team-img-clear').addEventListener('click', () => { draft.img = null; renderPickers(); });
 
@@ -186,7 +196,8 @@ function openTeamEditor(id) {
   editorKind = t ? kindOf(t) : teamsTab;
   const club = editorKind === 'club';
   draft = t
-    ? { icon: t.emblem.icon || ICONS[0], color: t.emblem.color || COLORS[0], img: t.emblem.img || null }
+    ? { icon: t.emblem.icon || ICONS[0], color: t.emblem.img ? COLORS[0] : (t.emblem.color || COLORS[0]),
+        img: t.emblem.img || null, imgColor: t.emblem.img ? (t.emblem.color || null) : null }
     : newDraft();
   $('team-title').textContent = t ? (club ? 'ИЗМЕНИТЬ КЛУБ' : 'ИЗМЕНИТЬ СБОРНУЮ')
                                   : (club ? 'НОВЫЙ КЛУБ' : 'НОВАЯ СБОРНАЯ');
@@ -210,7 +221,7 @@ $('btn-save-team').addEventListener('click', () => {
     name,
     rating: Number($('team-rating').value),
     country: club ? $('team-country').value : '',
-    emblem: draft.img ? { img: draft.img } : { icon: draft.icon, color: draft.color }
+    emblem: draft.img ? { img: draft.img, color: draft.imgColor || '#5a5a64' } : { icon: draft.icon, color: draft.color }
   };
   const existing = editingId == null ? null : teamById(editingId);
   if (existing) Object.assign(existing, data);          // изменение: id и тип остаются
@@ -231,7 +242,7 @@ function renderQuickSetup() {
   [['home', 'Хозяева'], ['away', 'Гости']].forEach(([side, title]) => {
     const t = teamById(quick[side + 'Id']);
     $('qm-' + side).innerHTML = `<div class="qm-title">${title}</div>` + (t
-      ? `${emblemHTML(t.emblem, 72)}<div class="name">${labelHTML(t)}</div><div class="rating">Рейтинг: ${t.rating}</div>`
+      ? `${emblemHTML(t.emblem, 72)}<div class="name">${nameHTML(t)}</div><div class="rating">Рейтинг: ${t.rating}</div>`
       : `<div class="emblem" style="width:72px;height:72px;background:#2b3a55;font-size:36px">?</div><div class="name">Выбрать</div>`);
   });
 }
@@ -242,7 +253,7 @@ function renderPicker() {
   $('picker-list').innerHTML = list.length ? list.map(t => `
     <div class="team-row pick-row ${t.id === otherId ? 'disabled' : ''}" data-pick="${t.id}">
       ${emblemHTML(t.emblem)}
-      <div class="info"><div class="name">${labelHTML(t)}</div><div class="rating">Рейтинг: ${t.rating}</div></div>
+      <div class="info"><div class="name">${listNameHTML(t)}</div><div class="rating">Рейтинг: ${t.rating}</div></div>
     </div>`).join('') : '<p class="placeholder">В этой вкладке команд нет</p>';
   $('picker-list').querySelectorAll('[data-pick]').forEach(el => {
     el.addEventListener('click', () => {
@@ -261,6 +272,7 @@ function openPicker(side) {
   const other = teamById(quick[(side === 'home' ? 'away' : 'home') + 'Id']);
   const cur = teamById(quick[side + 'Id']);
   pickerTab = kindOf(other || cur || { kind: 'club' });
+  if (!teams.some(t => kindOf(t) === pickerTab)) pickerTab = pickerTab === 'club' ? 'national' : 'club';
   setSeg('picker-tabs', pickerTab);
   renderPicker();
   $('picker').classList.add('open');
@@ -320,7 +332,7 @@ function renderStats(m) {
   const rows = [['Броски', m.stats.shots], ['Силовые приёмы', m.stats.hits],
                 ['Штраф (мин)', m.stats.pim], ['Большинство', m.stats.pp], ['Вбрасывания %', m.stats.faceoff]];
   $('match-stats').innerHTML = `<div class="periods">${per}${so}</div>` +
-    rows.map(([l, v]) => `<div class="stat-row"><b>${v[0]}</b><span>${l}</span><b>${v[1]}</b></div>`).join('');
+    rows.filter(([l, v]) => Array.isArray(v)).map(([l, v]) => `<div class="stat-row"><b>${v[0]}</b><span>${l}</span><b>${v[1]}</b></div>`).join('');
 }
 
 function finishMatch(m) {
@@ -475,11 +487,11 @@ function generateKHL(ids, confOf) {
 }
 
 // ---------- Таблица ----------
-function standings(t, conf) {
+function standings(t, conf, upTo) {
   const rows = {};
   t.teams.forEach(x => rows[x.id] = { team: x, gp: 0, w: 0, ow: 0, ol: 0, l: 0, gf: 0, ga: 0, pts: 0 });
   t.matches.forEach(m => {
-    if (!m.res) return;
+    if (!m.res || (upTo && m.tour > upTo)) return;
     const H = rows[m.home], A = rows[m.away];
     H.gp++; A.gp++;
     H.gf += m.res.h; H.ga += m.res.a; A.gf += m.res.a; A.ga += m.res.h;
@@ -492,22 +504,44 @@ function standings(t, conf) {
     .sort((a, b) => (b.pts - a.pts) || ((b.w + b.ow) - (a.w + a.ow)) ||
                     ((b.gf - b.ga) - (a.gf - a.ga)) || (b.gf - a.gf));
 }
+const lastPlayedTour = t => t.matches.reduce((m, x) => (x.res && x.tour > m ? x.tour : m), 0);
 function getTables(t) {
+  const last = lastPlayedTour(t);
+  const hasPrev = last >= 2 && t.matches.some(m => m.res && m.tour < last);
+  const mk = (title, conf) => {
+    const rows = standings(t, conf);
+    let prev = null;
+    if (hasPrev) {                                   // места до последнего сыгранного тура — для стрелок ▲▼
+      prev = {};
+      standings(t, conf, last - 1).forEach((r, i) => { prev[r.team.id] = i; });
+    }
+    return { title, rows, prev };
+  };
   if (t.format === 'conf') {
     const nm = confNamesOf(t);
-    return [{ title: nm[0].toUpperCase(), rows: standings(t, 0) },
-            { title: nm[1].toUpperCase(), rows: standings(t, 1) }];
+    return [mk(nm[0].toUpperCase(), 0), mk(nm[1].toUpperCase(), 1)];
   }
-  return [{ title: '', rows: standings(t) }];
+  return [mk('', undefined)];
 }
-// cut — сколько верхних команд выходят в плей-офф (они подсвечиваются)
-function tableHTML(rows, cut) {
-  return `<table class="std"><tr><th>#</th><th class="tn">Команда</th><th>И</th><th>В-П</th><th>Ш</th><th>О</th></tr>` +
-    rows.map((r, i) => {
-      const cls = cut && i < cut ? 'po-in' : (cut && i === cut ? 'po-cut' : '');
-      return `<tr class="${cls}"><td>${i + 1}</td><td class="tn"><div>${emblemHTML(r.team.emblem, 22)}<span>${labelHTML(r.team)}</span></div></td>` +
-        `<td>${r.gp}</td><td>${r.w + r.ow}-${r.l + r.ol}</td><td>${r.gf}:${r.ga}</td><td><b>${r.pts}</b></td></tr>`;
-    }).join('') + '</table>';
+// Таблица в стиле КХЛ: И — игры, В — победы (в т.ч. в ОТ и по буллитам), П — поражения в основное время,
+// ОТ — поражения в ОТ и по буллитам, ОЧКИ. cut — сколько верхних команд выходят в плей-офф (после них разрыв)
+function tableHTML(tb, cut) {
+  const rows = tb.rows;
+  let h = `<div class="lt"><div class="lt-head"><span></span><div class="lt-hgrid">` +
+    `<span class="lt-title">${esc(tb.title || 'ТАБЛИЦА')}</span><span>И</span><span>В</span><span>П</span><span>ОТ</span><span>ОЧКИ</span></div></div>`;
+  rows.forEach((r, i) => {
+    const color = r.team.emblem.color || '#5a5a64';
+    let arrow = '';
+    if (tb.prev && tb.prev[r.team.id] !== undefined && tb.prev[r.team.id] !== i) {
+      arrow = tb.prev[r.team.id] > i ? '<i class="up">▲</i>' : '<i class="down">▼</i>';
+    }
+    h += `<div class="lt-row${cut && i === cut ? ' gap' : ''}">` +
+      `<span class="lt-rank${cut && i < cut ? ' q' : ''}">${arrow}${i + 1}</span>` +
+      `<div class="lt-pill" style="--c:${color}"><span class="lt-emb">${emblemHTML(r.team.emblem, 28)}</span>` +
+      `<span class="lt-name">${esc(r.team.name)}</span>` +
+      `<span>${r.gp}</span><span>${r.w + r.ow}</span><span>${r.l}</span><span>${r.ol}</span><b class="lt-pts">${r.pts}</b></div></div>`;
+  });
+  return h + '</div>';
 }
 
 // ---------- Матчи регулярного сезона ----------
@@ -529,7 +563,7 @@ function watchGame(id) {
 
 function renderGames(t) {
   $('tour-label').textContent = `Тур ${viewTour} из ${t.tours}`;
-  const nm = x => SHOW_FLAG_IN_FIXTURES ? labelHTML(x) : esc(x.name);
+  const nm = x => esc(x.name);
   const games = t.matches.filter(m => m.tour === viewTour);
   const busy = new Set();
   games.forEach(m => { busy.add(m.home); busy.add(m.away); });
@@ -677,7 +711,7 @@ function seriesHTML(t, ref) {
   const row = (id, seed, wins, isWin) => {
     const x = id ? teamOf(t, id) : null;
     return `<div class="s-team ${s.winner ? (isWin ? 'win' : 'lose') : ''}">` +
-      (x ? `${emblemHTML(x.emblem, 28)}<span class="s-name">${seed ? `<i>${seed}</i>` : ''}${labelHTML(x)}${s.winner && isWin ? ' ✓' : ''}</span>`
+      (x ? `${emblemHTML(x.emblem, 28)}<span class="s-name">${seed ? `<i>${seed}</i>` : ''}${nameHTML(x)}${s.winner && isWin ? ' ✓' : ''}</span>`
          : `<span class="s-name tbd">Ожидание соперника</span>`) +
       `<b>${x && !s.bye ? wins : ''}</b></div>`;
   };
@@ -765,10 +799,10 @@ function renderTournamentView() {
   const banner = $('tv-banner');
   if (champ) {
     banner.style.display = 'block';
-    banner.textContent = '🏆 Чемпион: ' + labelOf(teamOf(t, champ));
+    banner.textContent = '🏆 Чемпион: ' + teamOf(t, champ).name;
   } else if (done && !t.po) {
     banner.style.display = 'block';
-    banner.textContent = '🏆 ' + getTables(t).map(x => (x.title ? x.title + ': ' : '') + labelOf(x.rows[0].team)).join(' · ');
+    banner.textContent = '🏆 ' + getTables(t).map(x => (x.title ? x.title + ': ' : '') + x.rows[0].team.name).join(' · ');
   } else if (done && t.po && !t.po.state) {
     banner.style.display = 'block';
     banner.textContent = 'Регулярный сезон завершён — откройте вкладку ПЛЕЙ-ОФФ';
@@ -776,11 +810,12 @@ function renderTournamentView() {
 
   if (!poOnly) {
     const cut = t.po ? t.po.n : 0;
-    $('tv-table').innerHTML = getTables(t).map(x =>
-      (x.title ? `<h3 class="conf-title">${esc(x.title)}</h3>` : '') + tableHTML(x.rows, cut)).join('') +
-      `<p class="note">И — сыграно матчей, В-П — победы-поражения, Ш — заброшенные:пропущенные шайбы, О — очки.<br>` +
-      `Очки: победа в основное время — ${t.winPts}, победа в ОТ/по буллитам — 2, поражение в ОТ/по буллитам — 1.` +
-      (cut ? `<br><span class="po-dot">●</span> Зелёным выделены команды, выходящие в плей-офф (${cut}${t.format === 'conf' ? ' от каждой конференции' : ''}).` : '') + '</p>';
+    $('tv-table').innerHTML = getTables(t).map(x => tableHTML(x, cut)).join('') +
+      `<p class="note">И — игры, В — победы (в т.ч. в ОТ и по буллитам), П — поражения в основное время, ОТ — поражения в ОТ и по буллитам.<br>` +
+      (t.winPts === 2 ? 'Очки: победа — 2, поражение в ОТ/по буллитам — 1.'
+                      : `Очки: победа в основное время — ${t.winPts}, победа в ОТ/по буллитам — 2, поражение в ОТ/по буллитам — 1.`) +
+      '<br>▲▼ — изменение места после последнего тура.' +
+      (cut ? `<br>Команды выше разрыва выходят в плей-офф (${cut}${t.format === 'conf' ? ' от каждой конференции' : ''}).` : '') + '</p>';
     renderGames(t);
     $('btn-play-tour').disabled = !t.matches.some(m => m.tour === viewTour && !m.res);
     $('btn-play-all').disabled = done;
@@ -886,7 +921,7 @@ function renderTEPickers() {
 $('te-img').addEventListener('change', e => {
   const f = e.target.files[0];
   e.target.value = '';
-  if (f) readImage(f, url => { td.img = url; renderTEPickers(); });
+  if (f) readImage(f, (url, col) => { td.img = url; td.imgColor = col; renderTEPickers(); });
 });
 $('te-img-clear').addEventListener('click', () => { td.img = null; renderTEPickers(); });
 
@@ -942,7 +977,7 @@ function renderTETeams() {
   if (!list.length) { box.innerHTML = '<p class="placeholder">В этой вкладке команд нет</p>'; return; }
 
   box.innerHTML = list.map(t => {
-    const info = `${emblemHTML(t.emblem, 40)}<div class="info"><div class="name">${labelHTML(t)}</div><div class="rating">Рейтинг: ${t.rating}</div></div>`;
+    const info = `${emblemHTML(t.emblem, 40)}<div class="info"><div class="name">${listNameHTML(t)}</div><div class="rating">Рейтинг: ${t.rating}</div></div>`;
     if (isConf) {
       const c = td.conf[t.id];
       return `<div class="team-row wrap ${c !== undefined ? 'sel' : ''}">
@@ -971,7 +1006,7 @@ function renderTETeams() {
 bindSeg('te-kind', v => { td.kind = v; syncTEForm(); });
 bindSeg('te-preset', v => {
   td.preset = v;
-  if (v === 'khl') { td.format = 'conf'; td.winPts = 3; td.po = true; td.poN = 8; td.bo = 7; }
+  if (v === 'khl') { td.format = 'conf'; td.winPts = 2; td.po = true; td.poN = 8; td.bo = 7; }
   syncTEForm();
 });
 bindSeg('te-pts', v => { td.winPts = Number(v); });
@@ -1002,7 +1037,8 @@ function openTournamentForm(kind) {
   $('te-name').value = '';
   $('te-conf0').value = 'Запад';
   $('te-conf1').value = 'Восток';
-  setSeg('te-tabs', 'club');
+  td.tab = teams.some(t => kindOf(t) === 'club') || !teams.length ? 'club' : 'national';
+  setSeg('te-tabs', td.tab);
   renderTEPickers();
   syncTEForm();
   showScreen('tournament-edit');
@@ -1035,7 +1071,7 @@ $('btn-create-tour').addEventListener('click', () => {
              emblem: { ...x.emblem }, conf: isConf ? td.conf[id] : 0 };
   });
   const base = {
-    id: newId(tournaments), name, emblem: td.img ? { img: td.img } : { icon: td.icon, color: td.color },
+    id: newId(tournaments), name, emblem: td.img ? { img: td.img, color: td.imgColor || '#5a5a64' } : { icon: td.icon, color: td.color },
     winPts: td.winPts, format: td.format, confNames: confNames(), teams: snap
   };
   let t;
@@ -1081,6 +1117,9 @@ window.App = {
 
 // ---------- Версия и принудительное обновление ----------
 $('app-ver').textContent = 'Версия ' + APP_VERSION;
+if (typeof Engine === 'undefined' || Engine.VERSION !== 2) {
+  $('app-warn').textContent = '⚠ Файл engine.js устарел. Загрузите новую версию engine.js на GitHub и нажмите «Обновить игру».';
+}
 async function hardRefresh() {
   try {
     if ('serviceWorker' in navigator) {

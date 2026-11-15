@@ -104,8 +104,8 @@ label.upload-btn { display: inline-block; margin: 0; padding: 12px 18px; font-we
 .pick-row.disabled { opacity: .3; }
 .team-row.sel { border-color: rgba(255,255,255,.75); box-shadow: var(--shine), 0 0 0 1px rgba(255,255,255,.35), 0 0 22px rgba(255,255,255,.12), var(--drop); }
 .emblem { display: flex; align-items: center; justify-content: center; border-radius: 50%; flex-shrink: 0; box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 3px 10px rgba(0,0,0,.45); }
-.emblem.img { border-radius: 24%; overflow: hidden; background: #fff; }
-.emblem img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.emblem.img { border-radius: 0; overflow: visible; background: none; box-shadow: none; }
+.emblem img { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,.45)); }
 .emblem-preview { display: flex; justify-content: center; margin: 8px 0; }
 .grid { display: flex; flex-wrap: wrap; gap: 10px; }
 .pick {
@@ -202,3 +202,41 @@ table.std th:nth-child(n+3), table.std td:nth-child(n+3) { white-space: nowrap; 
 .s-team.win .s-name { color: #fff; }
 .s-games { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.08); font-size: 12px; color: var(--text2); line-height: 1.6; }
 .series .gbtn button { font-size: 12px; }
+
+/* ---------- Флаги (только в списках команд) ---------- */
+.flag { margin-left: 4px; font-weight: 400; }
+
+/* ---------- Таблица в стиле КХЛ ---------- */
+.lt { margin-bottom: 22px; }
+.lt-head, .lt-row { display: grid; grid-template-columns: 36px minmax(0, 1fr); column-gap: 6px; align-items: center; }
+.lt-hgrid, .lt-pill { display: grid; grid-template-columns: 44px minmax(0, 1fr) 24px 24px 24px 26px 56px; align-items: center; }
+.lt-hgrid { color: rgba(255,255,255,.55); font-size: 11px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+.lt-title {
+  grid-column: 1 / 3; justify-self: start; text-align: left; color: #fff; font-size: 15px; letter-spacing: 1px;
+  padding: 7px 20px; border-radius: 14px; border: 1px solid var(--edge); box-shadow: var(--shine);
+  background: linear-gradient(145deg, rgba(165,175,185,.55), rgba(105,115,125,.42));
+}
+.lt-row { margin-bottom: 6px; }
+.lt-row.gap { margin-top: 18px; }
+.lt-rank { display: flex; justify-content: flex-end; align-items: center; gap: 3px; font-weight: 700; font-size: 15px; color: #fff; }
+.lt-rank.q { color: #34c759; }
+.lt-rank i { font-style: normal; font-size: 8px; }
+.lt-rank i.up { color: #34c759; }
+.lt-rank i.down { color: #ff453a; }
+.lt-pill {
+  height: 44px; border-radius: 999px; overflow: hidden; color: #111; font-size: 14px; font-weight: 700; text-align: center;
+  background: linear-gradient(180deg, #ffffff, #e6e6ec);
+  box-shadow: 0 6px 16px rgba(0,0,0,.5), inset 0 1px 0 #fff;
+}
+.lt-emb {
+  width: 40px; height: 40px; margin-left: 2px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 35% 30%, #2c2c30, #050506); box-shadow: inset 0 0 0 2px var(--c);
+}
+.lt-emb .emblem { box-shadow: none; }
+.lt-name { text-align: left; font-weight: 800; font-size: 13px; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 4px; }
+.lt-pts {
+  align-self: stretch; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 19px; font-weight: 800;
+  background: var(--c);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--c) 72%, #fff), var(--c) 70%);
+  clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%); text-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
