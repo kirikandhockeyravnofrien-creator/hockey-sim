@@ -1,4 +1,4 @@
-const CACHE = 'hockey-sim-v5';
+const CACHE = 'hockey-sim-v6';
 const FILES = ['./', './index.html', './style.css', './app.js', './engine.js',
                './cloud.js', './manifest.json', './icons/icon-192.png'];
 

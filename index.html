@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Pro Hockey Sim">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#000000">
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
   <div id="app">
@@ -80,6 +80,21 @@
       <div id="icon-grid" class="grid"></div>
       <label>Цвет</label>
       <div id="color-grid" class="grid"></div>
+
+      <label>Цвет команды в таблице</label>
+      <div class="pipette-wrap" id="pipette-wrap">
+        <canvas id="pipette" width="480" height="480"></canvas>
+        <div class="loupe" id="loupe"></div>
+      </div>
+      <p class="note">Пипетка: нажмите на логотип и ведите пальцем — цвет под пальцем станет цветом команды в таблице. Отпустите палец, чтобы выбрать.</p>
+      <div class="color-row">
+        <span class="swatch" id="tcolor-swatch"></span>
+        <span id="tcolor-hex" class="hex"></span>
+        <label class="upload-btn" for="team-color-input">Выбрать вручную</label>
+        <input id="team-color-input" class="vh" type="color" value="#5a5a64">
+        <button class="mini" id="tcolor-auto" style="display:none">Авто</button>
+      </div>
+      <div id="color-preview"></div>
       <button class="menu-btn primary" id="btn-save-team">СОХРАНИТЬ</button>
     </section>
 
@@ -192,6 +207,14 @@
             <label id="lbl-po-n">Сколько команд выходит в плей-офф</label>
             <input id="te-po-n" type="number" inputmode="numeric" min="2" max="64" value="8">
           </div>
+          <div id="po-merge-box" style="display:none">
+            <label>Общая сетка со 2-го раунда</label>
+            <div class="seg" id="te-merge">
+              <button data-v="on" class="active">ДА</button>
+              <button data-v="off">НЕТ</button>
+            </div>
+            <p class="note">ДА: 1-й раунд играют внутри конференций, потом команды Запада и Востока объединяются в одну таблицу (1-е место против 8-го и так далее). НЕТ: каждая конференция играет до своего финала, затем общий финал.</p>
+          </div>
           <label>Серия</label>
           <div class="seg" id="te-bo">
             <button data-v="1">1 матч</button>
@@ -250,8 +273,8 @@
     </div>
 
   </div>
-  <script src="engine.js?v=5"></script>
-  <script src="app.js?v=5"></script>
+  <script src="engine.js?v=6"></script>
+  <script src="app.js?v=6"></script>
   <script type="module" src="cloud.js"></script>
 </body>
 </html>

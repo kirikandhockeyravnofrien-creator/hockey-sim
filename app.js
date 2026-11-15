@@ -4,7 +4,7 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-const APP_VERSION = '5';
+const APP_VERSION = '6';
 
 
 // ---------- Хранилище ----------
@@ -161,7 +161,7 @@ function renderTeams() {
 bindSeg('teams-tabs', v => { teamsTab = v; renderTeams(); });
 
 // ---------- Создание команды ----------
-const newDraft = () => ({ icon: ICONS[0], color: COLORS[0], img: null, imgColor: null });
+const newDraft = () => ({ icon: ICONS[0], color: COLORS[0], img: null, imgColor: null, tColor: null });
 let draft = newDraft();
 let editingId = null;      // id редактируемой команды (null — создаём новую)
 let editorKind = 'club';   // тип команды в форме
@@ -176,11 +176,98 @@ function renderPickers() {
     `<div class="pick ${!draft.img && c === draft.color ? 'selected' : ''}" data-color="${c}" style="background:${c}"></div>`).join('');
   $('emblem-preview').innerHTML = emblemHTML(draft, 90);
   $('team-img-clear').style.display = draft.img ? 'inline-block' : 'none';
+  drawPipette(); updateColorUI();
   $('icon-grid').querySelectorAll('[data-icon]').forEach(el =>
     el.addEventListener('click', () => { draft.icon = el.dataset.icon; draft.img = null; renderPickers(); }));
   $('color-grid').querySelectorAll('[data-color]').forEach(el =>
     el.addEventListener('click', () => { draft.color = el.dataset.color; draft.img = null; renderPickers(); }));
 }
+
+// ---------- Цвет команды в таблице: пипетка по логотипу ----------
+const effColor = d => d.tColor || (d.img ? (d.imgColor || '#5a5a64') : d.color);
+const pip = { logo: document.createElement('canvas'), tok: 0, cur: null, active: false };
+
+function drawPipette() {
+  const S = 480, c = $('pipette'), lg = pip.logo;
+  c.width = c.height = lg.width = lg.height = S;
+  const g = lg.getContext('2d');
+  g.clearRect(0, 0, S, S);
+  const tok = ++pip.tok;
+  const paint = () => {
+    if (tok !== pip.tok) return;
+    const x = c.getContext('2d'), q = 30;
+    for (let r = 0; r < S / q; r++) for (let k = 0; k < S / q; k++) { x.fillStyle = (r + k) % 2 ? '#2b2b30' : '#212125'; x.fillRect(k * q, r * q, q, q); }
+    x.drawImage(lg, 0, 0);
+  };
+  if (draft.img) {
+    const im = new Image();
+    im.onload = () => {
+      if (tok !== pip.tok) return;
+      const k = Math.min(S / im.width, S / im.height);
+      const w = im.width * k, h = im.height * k;
+      g.drawImage(im, (S - w) / 2, (S - h) / 2, w, h);
+      paint();
+    };
+    im.src = draft.img;
+  } else {
+    g.fillStyle = draft.color;
+    g.beginPath(); g.arc(S / 2, S / 2, S * 0.4, 0, Math.PI * 2); g.fill();
+    g.font = Math.round(S * 0.4) + 'px -apple-system, "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(draft.icon, S / 2, S / 2 + S * 0.03);
+    paint();
+  }
+}
+
+// Средний цвет небольшой области вокруг точки касания (сглаживает края); null — если там пусто (прозрачно)
+function pipPick(ev) {
+  const c = $('pipette'), r = c.getBoundingClientRect();
+  const x = Math.round((ev.clientX - r.left) / r.width * c.width), y = Math.round((ev.clientY - r.top) / r.height * c.height);
+  const R = 3, x0 = Math.max(0, x - R), y0 = Math.max(0, y - R);
+  const w = Math.min(c.width - x0, 2 * R + 1), h = Math.min(c.height - y0, 2 * R + 1);
+  if (w <= 0 || h <= 0) return null;
+  const d = pip.logo.getContext('2d').getImageData(x0, y0, w, h).data;
+  let sr = 0, sg = 0, sb = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) { sr += d[i]; sg += d[i + 1]; sb += d[i + 2]; n++; }
+  if (!n) return null;
+  return '#' + [sr, sg, sb].map(v => Math.round(v / n).toString(16).padStart(2, '0')).join('');
+}
+function pipMove(ev) {
+  const col = pipPick(ev), lp = $('loupe'), wr = $('pipette-wrap').getBoundingClientRect();
+  pip.cur = col;
+  if (!col) { lp.style.display = 'none'; return; }
+  lp.style.display = 'block';
+  lp.style.background = col;
+  lp.style.left = (ev.clientX - wr.left) + 'px';
+  lp.style.top = (ev.clientY - wr.top - 56) + 'px';
+}
+const pipEnd = commit => ev => {
+  $('loupe').style.display = 'none';
+  if (commit && pip.active && pip.cur) { draft.tColor = pip.cur; updateColorUI(); }
+  pip.active = false; pip.cur = null;
+};
+$('pipette').addEventListener('pointerdown', ev => {
+  pip.active = true;
+  try { $('pipette').setPointerCapture(ev.pointerId); } catch (e) { /* не страшно */ }
+  pipMove(ev);
+});
+$('pipette').addEventListener('pointermove', ev => { if (pip.active) pipMove(ev); });
+$('pipette').addEventListener('pointerup', pipEnd(true));
+$('pipette').addEventListener('pointercancel', pipEnd(false));
+
+function updateColorUI() {
+  const col = effColor(draft);
+  $('tcolor-swatch').style.background = col;
+  $('tcolor-hex').textContent = draft.tColor ? col.toUpperCase() : 'автоматически';
+  $('tcolor-auto').style.display = draft.tColor ? 'inline-block' : 'none';
+  if (/^#[0-9a-f]{6}$/i.test(col)) $('team-color-input').value = col;
+  const emb = draft.img ? { img: draft.img, color: col } : { icon: draft.icon, color: draft.color };
+  $('color-preview').innerHTML = `<div class="lt"><div class="lt-row solo">` +
+    ltPillHTML({ name: $('team-name').value.trim() || 'Команда', emblem: emb }, col, [25, 19, 5, 1, 39]) + `</div></div>`;
+}
+$('tcolor-auto').addEventListener('click', () => { draft.tColor = null; updateColorUI(); });
+$('team-color-input').addEventListener('input', e => { draft.tColor = e.target.value; updateColorUI(); });
+$('team-name').addEventListener('input', updateColorUI);
 
 $('team-img').addEventListener('change', e => {
   const f = e.target.files[0];
@@ -197,7 +284,7 @@ function openTeamEditor(id) {
   const club = editorKind === 'club';
   draft = t
     ? { icon: t.emblem.icon || ICONS[0], color: t.emblem.img ? COLORS[0] : (t.emblem.color || COLORS[0]),
-        img: t.emblem.img || null, imgColor: t.emblem.img ? (t.emblem.color || null) : null }
+        img: t.emblem.img || null, imgColor: t.emblem.img ? (t.emblem.color || null) : null, tColor: t.color || null }
     : newDraft();
   $('team-title').textContent = t ? (club ? 'ИЗМЕНИТЬ КЛУБ' : 'ИЗМЕНИТЬ СБОРНУЮ')
                                   : (club ? 'НОВЫЙ КЛУБ' : 'НОВАЯ СБОРНАЯ');
@@ -219,6 +306,7 @@ $('btn-save-team').addEventListener('click', () => {
   const club = editorKind === 'club';
   const data = {
     name,
+    color: draft.tColor || null,                       // цвет команды в таблице (null — автоматически)
     rating: Number($('team-rating').value),
     country: club ? $('team-country').value : '',
     emblem: draft.img ? { img: draft.img, color: draft.imgColor || '#5a5a64' } : { icon: draft.icon, color: draft.color }
@@ -523,6 +611,11 @@ function getTables(t) {
   }
   return [mk('', undefined)];
 }
+function ltPillHTML(team, color, v) {
+  return `<div class="lt-pill" style="--c:${color}"><span class="lt-emb">${emblemHTML(team.emblem, 28)}</span>` +
+    `<span class="lt-name">${esc(team.name)}</span>` +
+    `<span>${v[0]}</span><span>${v[1]}</span><span>${v[2]}</span><span>${v[3]}</span><b class="lt-pts">${v[4]}</b></div>`;
+}
 // Таблица в стиле КХЛ: И — игры, В — победы (в т.ч. в ОТ и по буллитам), П — поражения в основное время,
 // ОТ — поражения в ОТ и по буллитам, ОЧКИ. cut — сколько верхних команд выходят в плей-офф (после них разрыв)
 function tableHTML(tb, cut) {
@@ -530,16 +623,14 @@ function tableHTML(tb, cut) {
   let h = `<div class="lt"><div class="lt-head"><span></span><div class="lt-hgrid">` +
     `<span class="lt-title">${esc(tb.title || 'ТАБЛИЦА')}</span><span>И</span><span>В</span><span>П</span><span>ОТ</span><span>ОЧКИ</span></div></div>`;
   rows.forEach((r, i) => {
-    const color = r.team.emblem.color || '#5a5a64';
+    const color = r.team.color || r.team.emblem.color || '#5a5a64';
     let arrow = '';
     if (tb.prev && tb.prev[r.team.id] !== undefined && tb.prev[r.team.id] !== i) {
       arrow = tb.prev[r.team.id] > i ? '<i class="up">▲</i>' : '<i class="down">▼</i>';
     }
     h += `<div class="lt-row${cut && i === cut ? ' gap' : ''}">` +
       `<span class="lt-rank${cut && i < cut ? ' q' : ''}">${arrow}${i + 1}</span>` +
-      `<div class="lt-pill" style="--c:${color}"><span class="lt-emb">${emblemHTML(r.team.emblem, 28)}</span>` +
-      `<span class="lt-name">${esc(r.team.name)}</span>` +
-      `<span>${r.gp}</span><span>${r.w + r.ow}</span><span>${r.l}</span><span>${r.ol}</span><b class="lt-pts">${r.pts}</b></div></div>`;
+      ltPillHTML(r.team, color, [r.gp, r.w + r.ow, r.l, r.ol, r.pts]) + `</div>`;
   });
   return h + '</div>';
 }
@@ -588,10 +679,17 @@ function renderGames(t) {
     b.addEventListener('click', () => watchGame(Number(b.dataset.s))));
 }
 
-// ---------- Плей-офф: сетка и серии ----------
-const PO_PATTERN = { 1: 'H', 3: 'HAH', 5: 'HHAAH', 7: 'HHAAHAH' };   // H — хозяин лучший посеянный
+// ---------- Плей-офф ----------
+// Состояние плей-оффа — список СТАДИЙ (раундов). В каждой стадии есть группы (конференции) и серии.
+// Режимы:
+//   single — одна общая сетка;
+//   conf   — каждая конференция играет до своего финала, затем общий финал;
+//   merge  — 1-й раунд внутри конференций, со 2-го раунда общий посев двух конференций
+//            (лучший против худшего по результатам сезона), дальше полуфинал и финал.
+const PO_PATTERN = { 1: 'H', 3: 'HAH', 5: 'HHAAH', 7: 'HHAAHAH' };   // H — хозяин лучшая по посеву команда
 const poNeed = bo => (bo + 1) / 2;
 const boText = bo => bo === 1 ? 'один матч' : `до ${poNeed(bo)} побед`;
+const stageName = remain => remain === 2 ? 'Финал' : remain === 4 ? 'Полуфинал' : remain === 8 ? 'Четвертьфинал' : `1/${remain / 2} финала`;
 
 function bracketOrder(size) {      // 8 -> [1,8,4,5,2,7,3,6]
   let o = [1];
@@ -606,62 +704,125 @@ function setHI(st, s) {            // у кого преимущество св�
   if (s.sa != null && s.sb != null && s.sa !== s.sb) s.hi = s.sa < s.sb ? s.a : s.b;
   else s.hi = (st.keys[s.a] || 0) >= (st.keys[s.b] || 0) ? s.a : s.b;
 }
+function setSlot(st, s, slot, id, seed) {
+  if (slot === 'a') { s.a = id; s.sa = seed; } else { s.b = id; s.sb = seed; }
+  setHI(st, s);
+}
 
-function buildBracket(bi, title, ids) {
+// Раунды одной сетки: в первом раунде расставлены команды по посеву (без соперника — проход без игры)
+function makeRounds(prefix, ids) {
   const N = ids.length, size = nextPow2(N), order = bracketOrder(size);
   const rounds = [];
   let count = size / 2, r = 0;
   while (count >= 1) {
-    rounds.push(Array.from({ length: count }, (_, i) => makeSeries(`${bi}-${r}-${i}`)));
+    rounds.push(Array.from({ length: count }, (_, i) => makeSeries(`${prefix}-${r}-${i}`)));
     count /= 2; r++;
   }
   rounds[0].forEach((s, i) => {
     const sa = order[2 * i], sb = order[2 * i + 1];
     s.sa = sa; s.a = ids[sa - 1];
-    if (sb <= N) { s.sb = sb; s.b = ids[sb - 1]; }
+    if (sb <= N) { s.sb = sb; s.b = ids[sb - 1]; } else { s.bye = true; s.winner = s.a; }
   });
-  return { title, rounds, champion: null };
+  return rounds;
 }
 
-// Серия закончилась: победитель идёт дальше; победитель последней серии — чемпион (конференции)
-function finishSeries(st, bi, r, i) {
-  const br = st.brackets[bi], s = br.rounds[r][i];
+// Серия закончилась: победитель занимает место в следующей стадии
+function advance(st, si, gi, i) {
+  const stage = st.stages[si], s = stage.groups[gi].series[i];
   const winSeed = s.winner === s.a ? s.sa : s.sb;
-  if (r + 1 < br.rounds.length) {
-    const nx = br.rounds[r + 1][Math.floor(i / 2)];
-    if (i % 2 === 0) { nx.a = s.winner; nx.sa = winSeed; } else { nx.b = s.winner; nx.sb = winSeed; }
-    setHI(st, nx);
-  } else {
-    br.champion = s.winner;
-    if (st.brackets.length === 1) st.champion = s.winner;
-    else if (st.brackets.every(b => b.champion) && !st.final) {
-      const f = makeSeries('f');
-      f.a = st.brackets[0].champion; f.b = st.brackets[1].champion;
-      setHI(st, f);
-      st.final = f;
-    }
+  if (st.mode === 'merge' && si === 0) {
+    if (stage.groups.every(g => g.series.every(x => x.winner))) fillMerged(st);
+    return;
+  }
+  const nxt = st.stages[si + 1];
+  if (!nxt) { st.champion = s.winner; return; }
+  if (nxt.groups.length === stage.groups.length && nxt.groups[gi].series.length) {
+    setSlot(st, nxt.groups[gi].series[Math.floor(i / 2)], i % 2 === 0 ? 'a' : 'b', s.winner, winSeed);
+  } else {                                           // победители конференций встречаются в финале
+    setSlot(st, nxt.groups[0].series[0], gi === 0 ? 'a' : 'b', s.winner, null);
   }
 }
 
-// lists: [{title, ids}] — команды каждой сетки по порядку посева; keys: id -> сила (для преимущества в финале)
-function buildPlayoffState(lists, keys) {
-  const st = { brackets: [], final: null, champion: null, keys };
-  lists.forEach((l, bi) => st.brackets.push(buildBracket(bi, l.title, l.ids)));
-  st.brackets.forEach((br, bi) => br.rounds[0].forEach((s, i) => {
-    if (s.a && !s.b) { s.winner = s.a; s.bye = true; finishSeries(st, bi, 0, i); }   // пропуск раунда
-  }));
-  st.brackets.forEach(br => br.rounds[0].forEach(s => setHI(st, s)));
+// Общий посев после 1-го раунда: все прошедшие команды Запада и Востока — в одну таблицу
+function fillMerged(st) {
+  const adv = [];
+  st.stages[0].groups.forEach(g => g.series.forEach(s => adv.push(s.winner)));
+  adv.sort((x, y) => (st.keys[y] || 0) - (st.keys[x] || 0));      // лучший по итогам сезона — первый
+  const M = adv.length, order = bracketOrder(nextPow2(M));
+  const first = st.stages[1].groups[0].series;
+  first.forEach((s, i) => {
+    const sa = order[2 * i], sb = order[2 * i + 1];
+    s.sa = sa; s.a = adv[sa - 1];
+    if (sb <= M) { s.sb = sb; s.b = adv[sb - 1]; } else { s.bye = true; s.winner = s.a; }
+    setHI(st, s);
+  });
+  first.forEach((s, i) => { if (s.bye) advance(st, 1, 0, i); });
+  st.seedTable = adv.slice();
+}
+
+// lists: [{title, ids}] — команды каждой конференции (или одной сетки) по порядку посева
+// keys: id -> сила (чем больше, тем лучше): итоги сезона или рейтинг
+function buildPlayoffState(lists, keys, merge) {
+  const st = { mode: lists.length === 1 ? 'single' : (merge ? 'merge' : 'conf'), stages: [], champion: null, keys, seedTable: null };
+  const rounds = lists.map((l, g) => makeRounds(`g${g}`, l.ids));
+  if (st.mode === 'single') {
+    const R = rounds[0].length;
+    rounds[0].forEach((rd, r) => st.stages.push({ name: stageName(2 ** (R - r)), groups: [{ title: '', series: rd }] }));
+  } else if (st.mode === 'conf') {
+    const maxR = Math.max(...rounds.map(r => r.length));
+    for (let s = 0; s < maxR; s++) {
+      st.stages.push({
+        name: stageName(2 ** (maxR - s + 1)),
+        groups: lists.map((l, g) => { const off = maxR - rounds[g].length; return { title: l.title, series: s >= off ? rounds[g][s - off] : [] }; })
+      });
+    }
+    st.stages.push({ name: 'Финал', groups: [{ title: '', series: [makeSeries('f')] }] });
+  } else {
+    const first = lists.map((l, g) => ({ title: l.title, series: rounds[g][0] }));
+    const M = first.reduce((n, g) => n + g.series.length, 0);
+    const size = nextPow2(M);
+    st.stages.push({ name: stageName(size * 2), groups: first });
+    let count = size / 2, r = 0;
+    while (count >= 1) {
+      st.stages.push({ name: stageName(size / 2 ** r), groups: [{ title: '', series: Array.from({ length: count }, (_, i) => makeSeries(`m${r}-${i}`)) }] });
+      count /= 2; r++;
+    }
+  }
+  st.stages.forEach(sg => sg.groups.forEach(g => g.series.forEach(s => setHI(st, s))));
+  st.stages.forEach((sg, si) => sg.groups.forEach((g, gi) => g.series.forEach((s, i) => { if (s.bye) advance(st, si, gi, i); })));
   return st;
 }
 
-function allSeries(st) {
-  const out = [];
-  st.brackets.forEach((br, bi) => br.rounds.forEach((rd, r) => rd.forEach((s, i) => out.push({ s, bi, r, i }))));
-  if (st.final) out.push({ s: st.final, bi: -1, r: 99, i: 0 });
-  return out;
+// Состояние из прошлых версий игры (brackets) -> stages
+function migratePlayoff(st) {
+  if (st.stages) return st;
+  const brs = st.brackets, R = Math.max(...brs.map(b => b.rounds.length));
+  const ns = { mode: brs.length === 1 ? 'single' : 'conf', stages: [], champion: st.champion || null, keys: st.keys || {}, seedTable: null };
+  for (let r = 0; r < R; r++) {
+    ns.stages.push({ name: stageName(2 ** (brs.length === 1 ? R - r : R - r + 1)), groups: brs.map(b => ({ title: b.title, series: b.rounds[r] || [] })) });
+  }
+  if (brs.length === 2) ns.stages.push({ name: 'Финал', groups: [{ title: '', series: [st.final || makeSeries('f')] }] });
+  return ns;
 }
-const findSeries = (st, id) => allSeries(st).find(x => x.s.id === id);
-const readySeries = st => allSeries(st).filter(x => x.s.a && x.s.b && !x.s.winner);
+
+const poRefs = st => {
+  const out = [];
+  st.stages.forEach((sg, si) => sg.groups.forEach((g, gi) => g.series.forEach((s, i) => out.push({ s, si, gi, i }))));
+  return out;
+};
+const findSeries = (st, id) => poRefs(st).find(x => x.s.id === id);
+const isReady = x => x.s.a && x.s.b && !x.s.winner;
+const readyIn = (st, si) => poRefs(st).filter(x => x.si === si && isReady(x));
+const stageStatus = sg => {
+  const all = sg.groups.flatMap(g => g.series);
+  if (all.every(s => s.winner)) return 'done';
+  return all.some(s => s.a && s.b && !s.winner) ? 'live' : 'wait';
+};
+// Какую стадию показывать: первую, где есть что играть; если всё сыграно — последнюю
+function activeStage(st) {
+  const i = st.stages.findIndex(sg => stageStatus(sg) === 'live');
+  return i >= 0 ? i : (st.champion ? st.stages.length - 1 : 0);
+}
 
 function poHomeFor(t, s) {
   const pat = PO_PATTERN[t.po.bestOf] || PO_PATTERN[7];
@@ -681,49 +842,47 @@ function recordPoGame(t, ref, homeId, m) {
   const need = poNeed(t.po.bestOf);
   if (s.wa >= need || s.wb >= need) {
     s.winner = s.wa >= need ? s.a : s.b;
-    if (ref.bi >= 0) finishSeries(t.po.state, ref.bi, ref.r, ref.i);
-    else t.po.state.champion = s.winner;
+    advance(t.po.state, ref.si, ref.gi, ref.i);
   }
 }
 function playSeries(t, ref) {
   while (!ref.s.winner) { const g = simPoGame(t, ref); recordPoGame(t, ref, g.home, g.m); }
 }
-function playRound(t) {
-  const ready = readySeries(t.po.state);
-  if (!ready.length) return;
-  const rMin = Math.min(...ready.map(x => x.r));
-  ready.filter(x => x.r === rMin).forEach(x => playSeries(t, x));
-}
+function playStage(t, si) { readyIn(t.po.state, si).forEach(x => playSeries(t, x)); }
 function playAllPlayoff(t) {
+  const st = t.po.state;
   let guard = 0;
-  while (!t.po.state.champion && guard++ < 20) playRound(t);
+  while (!st.champion && guard++ < 40) {
+    const si = st.stages.findIndex(sg => stageStatus(sg) === 'live');
+    if (si < 0) break;
+    playStage(t, si);
+  }
 }
 
-function roundName(t, bracket, r) {
-  const total = bracket.rounds.length;
-  if (t.format === 'conf' && t.po.state.brackets.length === 2) return r === total - 1 ? 'Финал конференции' : `${r + 1}-й раунд`;
-  const remain = 2 ** (total - r);
-  return remain === 2 ? 'Финал' : remain === 4 ? 'Полуфинал' : remain === 8 ? 'Четвертьфинал' : `1/${remain / 2} финала`;
-}
+// ---------- Показ плей-оффа ----------
+let poStage = null;       // какая стадия открыта (номер); null — выбрать автоматически
 
-function seriesHTML(t, ref) {
-  const s = ref.s;
+function seriesHTML(t, ref, merged) {
+  const s = ref.s, st = t.po.state;
   const row = (id, seed, wins, isWin) => {
     const x = id ? teamOf(t, id) : null;
     return `<div class="s-team ${s.winner ? (isWin ? 'win' : 'lose') : ''}">` +
       (x ? `${emblemHTML(x.emblem, 28)}<span class="s-name">${seed ? `<i>${seed}</i>` : ''}${nameHTML(x)}${s.winner && isWin ? ' ✓' : ''}</span>`
-         : `<span class="s-name tbd">Ожидание соперника</span>`) +
+         : `<span class="s-name tbd">—</span>`) +
       `<b>${x && !s.bye ? wins : ''}</b></div>`;
   };
-  const gm = s.games.map((g, i) => {
-    const h = teamOf(t, g.home), a = teamOf(t, g.home === s.a ? s.b : s.a);
-    const ot = g.ot ? (g.ot === 1 ? ' ОТ' : ` ${g.ot}ОТ`) : '';
-    return `<div>Игра ${i + 1}: ${esc(h.name)} ${g.h}:${g.a} ${esc(a.name)}${ot}</div>`;
+  // результаты игр одной строкой; счёт всегда в порядке «верхняя команда : нижняя»
+  const chips = s.games.map(g => {
+    const top = g.home === s.a ? g.h : g.a, bot = g.home === s.a ? g.a : g.h;
+    return `<span class="${top > bot ? 'tw' : 'bw'}">${top}:${bot}${g.ot ? (g.ot === 1 ? ' ОТ' : ` ${g.ot}ОТ`) : ''}</span>`;
   }).join('');
-  const ready = s.a && s.b && !s.winner;
+  const ready = isReady(ref);
+  const host = ready ? teamOf(t, poHomeFor(t, s)).name : '';
   return `<div class="series ${s.winner ? 'done' : ''}">` +
     row(s.a, s.sa, s.wa, s.winner === s.a) + row(s.b, s.sb, s.wb, s.winner === s.b) +
-    (s.bye ? '<div class="s-games">Проходит без игры</div>' : (gm ? `<div class="s-games">${gm}</div>` : '')) +
+    (s.bye ? '<div class="s-note">Проходит без игры</div>' : '') +
+    (chips ? `<div class="gchips">${chips}</div>` : '') +
+    (ready ? `<div class="s-note">Игра ${s.games.length + 1} — дома: ${esc(host)}</div>` : '') +
     (ready ? `<div class="gbtn"><button data-po-q="${s.id}">⚡ Игра</button><button data-po-w="${s.id}">▶ Смотреть</button><button data-po-s="${s.id}">⏩ Серия</button></div>` : '') +
     '</div>';
 }
@@ -731,9 +890,13 @@ function seriesHTML(t, ref) {
 function startPlayoff(t) {
   const tables = getTables(t);
   const lists = tables.map(x => ({ title: x.title, ids: x.rows.slice(0, t.po.n).map(r => r.team.id) }));
+  // общий рейтинг всех вышедших команд по итогам сезона: очки, победы, разница шайб, забитые
+  const all = tables.flatMap(x => x.rows.slice(0, t.po.n)).sort((a, b) =>
+    (b.pts - a.pts) || ((b.w + b.ow) - (a.w + a.ow)) || ((b.gf - b.ga) - (a.gf - a.ga)) || (b.gf - a.gf));
   const keys = {};
-  tables.forEach(x => x.rows.forEach(r => { keys[r.team.id] = r.pts * 1000 + r.team.rating; }));
-  t.po.state = buildPlayoffState(lists, keys);
+  all.forEach((r, i) => { keys[r.team.id] = 1000 - i; });
+  t.po.state = buildPlayoffState(lists, keys, !!t.po.merge && t.format === 'conf');
+  poStage = null;
   saveTournaments();
   renderTournamentView();
 }
@@ -741,40 +904,64 @@ function startPlayoff(t) {
 function renderPlayoff(t) {
   const box = $('po-view');
   if (!t.po) { box.innerHTML = ''; return; }
+  if (t.po.state) t.po.state = migratePlayoff(t.po.state);
   const st = t.po.state;
   if (!st) {
     const done = t.matches.every(m => m.res);
     const per = t.format === 'conf' ? ' от каждой конференции' : '';
-    box.innerHTML = `<p class="note">В плей-офф выходят ${t.po.n} команд${per}. Серии — ${boText(t.po.bestOf)}. ` +
-      `Посев по итогам регулярного сезона.${done ? '' : ' Плей-офф можно начать, когда сыграны все матчи сезона.'}</p>` +
+    const how = t.format === 'conf'
+      ? (t.po.merge ? ' 1-й раунд — внутри конференций, со 2-го раунда общий посев двух конференций.' : ' Каждая конференция играет до своего финала, затем общий финал.')
+      : '';
+    box.innerHTML = `<p class="note">В плей-офф выходят ${t.po.n} команд${per}. Серии — ${boText(t.po.bestOf)}.${how}` +
+      `${done ? '' : ' Плей-офф можно начать, когда сыграны все матчи сезона.'}</p>` +
       `<button class="menu-btn full primary" id="btn-po-start" ${done ? '' : 'disabled'}>НАЧАТЬ ПЛЕЙ-ОФФ</button>`;
     $('btn-po-start').addEventListener('click', () => startPlayoff(t));
     return;
   }
-  let html = `<p class="note">Серии — ${boText(t.po.bestOf)}. Хозяин игр 1, 2, 5, 7 — лучшая команда по посеву.</p>`;
-  st.brackets.forEach(br => {
-    if (br.title) html += `<h3 class="conf-title">${esc(br.title)}</h3>`;
-    br.rounds.forEach((rd, r) => {
-      html += `<h4 class="round-title">${roundName(t, br, r)}</h4>`;
-      rd.forEach((s, i) => { html += seriesHTML(t, { s, bi: 0, r, i }); });
+  if (poStage == null || poStage >= st.stages.length) poStage = activeStage(st);
+  const stage = st.stages[poStage];
+
+  // 1) переключатель стадий
+  let html = `<div class="chips">` + st.stages.map((sg, i) => {
+    const stt = stageStatus(sg);
+    return `<button class="chip ${i === poStage ? 'on' : ''} ${stt}" data-stage="${i}">${esc(sg.name)}${stt === 'done' ? ' ✓' : ''}</button>`;
+  }).join('') + `</div>`;
+  html += `<p class="note">Серия — ${boText(t.po.bestOf)}.${t.po.bestOf > 1 ? ' Дома играет лучшая по посеву команда в играх 1, 2, 5, 7.' : ''}</p>`;
+
+  // 2) выбранная стадия
+  const status = stageStatus(stage);
+  const noTeams = stage.groups.every(g => g.series.every(s => !s.a && !s.b));
+  if (noTeams) {
+    const prev = st.stages[poStage - 1];
+    html += `<p class="placeholder" style="margin-top:24px">Команды определятся после стадии «${esc(prev ? prev.name : '')}».</p>`;
+  } else {
+    if (st.mode === 'merge' && poStage === 1 && st.seedTable) {
+      html += `<p class="note">Общий посев по итогам сезона: ` +
+        st.seedTable.map((id, i) => `${i + 1}. ${esc(teamOf(t, id).name)}`).join(' · ') + '.</p>';
+    }
+    stage.groups.forEach(g => {
+      if (!g.series.length) return;
+      if (g.title && st.stages[poStage].groups.filter(x => x.series.length).length > 1) html += `<h3 class="conf-title">${esc(g.title)}</h3>`;
+      g.series.forEach(s => {
+        const ref = poRefs(st).find(x => x.s === s);
+        html += seriesHTML(t, ref);
+      });
     });
-  });
-  if (st.final) html += `<h3 class="conf-title">ФИНАЛ</h3>` + seriesHTML(t, { s: st.final, bi: -1, r: 99, i: 0 });
-  else if (st.brackets.length === 2) html += `<h3 class="conf-title">ФИНАЛ</h3><p class="note">Финал начнётся, когда определятся победители обеих конференций.</p>`;
+  }
   box.innerHTML = html;
 
+  box.querySelectorAll('[data-stage]').forEach(b => b.addEventListener('click', () => { poStage = Number(b.dataset.stage); renderTournamentView(); }));
   const ref = id => findSeries(st, id);
+  const after = () => { saveTournaments(); poStage = activeStage(st); renderTournamentView(); };
   box.querySelectorAll('[data-po-q]').forEach(b => b.addEventListener('click', () => {
     const r = ref(b.dataset.poQ), g = simPoGame(t, r);
-    recordPoGame(t, r, g.home, g.m); saveTournaments(); renderTournamentView();
+    recordPoGame(t, r, g.home, g.m); after();
   }));
-  box.querySelectorAll('[data-po-s]').forEach(b => b.addEventListener('click', () => {
-    playSeries(t, ref(b.dataset.poS)); saveTournaments(); renderTournamentView();
-  }));
+  box.querySelectorAll('[data-po-s]').forEach(b => b.addEventListener('click', () => { playSeries(t, ref(b.dataset.poS)); after(); }));
   box.querySelectorAll('[data-po-w]').forEach(b => b.addEventListener('click', () => {
     const r = ref(b.dataset.poW), g = simPoGame(t, r);
     matchReturn = 'tournament';
-    matchCallback = res => { recordPoGame(t, r, g.home, res); saveTournaments(); };
+    matchCallback = res => { recordPoGame(t, r, g.home, res); saveTournaments(); poStage = activeStage(st); };
     showScreen('match');
     playMatch(g.m);
   }));
@@ -828,6 +1015,7 @@ function renderTournamentView() {
   $('actions-season').style.display = (!poOnly && tvTab !== 'playoff') ? 'flex' : 'none';
   const poRunning = !!(t.po && t.po.state && !t.po.state.champion);
   $('actions-po').style.display = (tvTab === 'playoff' && poRunning) ? 'flex' : 'none';
+  if (poRunning) $('btn-po-round').disabled = !readyIn(t.po.state, poStage == null ? 0 : poStage).length;
 }
 bindSeg('tv-tabs', v => { tvTab = v; renderTournamentView(); });
 
@@ -857,11 +1045,12 @@ $('btn-play-all').addEventListener('click', () => {
 });
 $('btn-po-round').addEventListener('click', () => {
   const t = curTournament();
-  playRound(t); saveTournaments(); renderTournamentView();
+  playStage(t, poStage == null ? activeStage(t.po.state) : poStage);       // играем ту стадию, которая открыта
+  saveTournaments(); poStage = activeStage(t.po.state); renderTournamentView();
 });
 $('btn-po-all').addEventListener('click', () => {
   const t = curTournament();
-  withBusy($('btn-po-all'), () => { playAllPlayoff(t); saveTournaments(); renderTournamentView(); });
+  withBusy($('btn-po-all'), () => { playAllPlayoff(t); saveTournaments(); poStage = activeStage(t.po.state); renderTournamentView(); });
 });
 
 // ---------- Список турниров ----------
@@ -885,6 +1074,7 @@ function renderTournaments() {
     const first = t.matches.find(m => !m.res);
     viewTour = first ? first.tour : Math.max(1, t.tours);
     tvTab = isPlayoffOnly(t) ? 'playoff' : 'table';
+    poStage = null;
     showScreen('tournament');
   }));
   box.querySelectorAll('[data-deltour]').forEach(b => b.addEventListener('click', e => {
@@ -901,7 +1091,7 @@ function renderTournaments() {
 const newTD = () => ({
   kind: 'tournament', preset: 'custom', icon: ICONS[0], color: COLORS[0], img: null,
   winPts: 3, format: 'league', picked: {}, conf: {}, tab: 'club', tours: 10,
-  po: false, poN: 8, bo: 7
+  po: false, poN: 8, bo: 7, merge: true
 });
 let td = newTD();
 const confNames = () => [$('te-conf0').value.trim() || 'Запад', $('te-conf1').value.trim() || 'Восток'];
@@ -935,6 +1125,7 @@ function syncTEForm() {
   $('sec-tours').style.display = isPO ? 'none' : 'block';
   $('po-toggle-box').style.display = isPO ? 'none' : 'block';
   $('po-opts').style.display = (isPO || td.po) ? 'block' : 'none';
+  $('po-merge-box').style.display = (td.format === 'conf' && (isPO || td.po)) ? 'block' : 'none';
   $('po-n-box').style.display = isPO ? 'none' : 'block';
   $('lbl-format').textContent = isPO ? 'Формат сетки' : 'Формат таблицы';
   const fb = $('te-format').querySelectorAll('button');
@@ -947,6 +1138,7 @@ function syncTEForm() {
   if (!khl) $('te-tours').value = td.tours;
   setSeg('te-kind', td.kind); setSeg('te-preset', td.preset); setSeg('te-format', td.format);
   setSeg('te-pts', String(td.winPts)); setSeg('te-po', td.po ? 'on' : 'off'); setSeg('te-bo', String(td.bo));
+  setSeg('te-merge', td.merge ? 'on' : 'off');
   $('te-po-n').value = td.poN;
   renderTETeams();
 }
@@ -1013,6 +1205,7 @@ bindSeg('te-pts', v => { td.winPts = Number(v); });
 bindSeg('te-format', v => { td.format = v; syncTEForm(); });
 bindSeg('te-po', v => { td.po = v === 'on'; syncTEForm(); });
 bindSeg('te-bo', v => { td.bo = Number(v); });
+bindSeg('te-merge', v => { td.merge = v === 'on'; });
 bindSeg('te-tabs', v => { td.tab = v; renderTETeams(); });
 $('te-tours').addEventListener('input', e => { td.tours = Number(e.target.value) || 0; });
 $('te-po-n').addEventListener('input', e => { td.poN = Number(e.target.value) || 0; });
@@ -1068,7 +1261,7 @@ $('btn-create-tour').addEventListener('click', () => {
   const snap = ids.map(id => {
     const x = teamById(id);
     return { id: x.id, name: x.name, rating: x.rating, kind: kindOf(x), country: x.country || '',
-             emblem: { ...x.emblem }, conf: isConf ? td.conf[id] : 0 };
+             emblem: { ...x.emblem }, color: x.color || null, conf: isConf ? td.conf[id] : 0 };
   });
   const base = {
     id: newId(tournaments), name, emblem: td.img ? { img: td.img, color: td.imgColor || '#5a5a64' } : { icon: td.icon, color: td.color },
@@ -1083,11 +1276,11 @@ $('btn-create-tour').addEventListener('click', () => {
     const keys = {};
     snap.forEach(x => { keys[x.id] = x.rating; });
     t = { ...base, type: 'playoff', tours: 0, matches: [], preset: 'custom',
-          po: { n: 0, bestOf: td.bo, state: buildPlayoffState(lists, keys) } };
+          po: { n: 0, bestOf: td.bo, state: buildPlayoffState(lists, keys, td.merge && isConf), merge: td.merge && isConf } };
   } else {
     t = { ...base, type: 'tournament', preset: td.preset, tours,
           matches: khl ? generateKHL(ids, id => td.conf[id]) : generateSchedule(ids, tours),
-          po: td.po ? { n: td.poN, bestOf: td.bo, state: null } : null };
+          po: td.po ? { n: td.poN, bestOf: td.bo, merge: td.merge && isConf, state: null } : null };
   }
   tournaments.push(t);
   saveTournaments();
