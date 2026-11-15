@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Pro Hockey Sim">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#000000">
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
   <div id="app">
@@ -22,6 +22,7 @@
       <button class="menu-btn" data-go="teams">КОМАНДЫ</button>
       <button class="menu-btn" data-go="quick">БЫСТРЫЙ МАТЧ</button>
       <button class="menu-btn" data-go="tournaments">ТУРНИРЫ</button>
+      <button class="menu-btn" id="btn-career">КАРЬЕРА</button>
       <div class="account">
         <span id="acc-email"></span>
         <span id="sync-status"></span>
@@ -262,6 +263,32 @@
       </div>
     </section>
 
+    <!-- КАРЬЕРА: выбор клуба -->
+    <section id="screen-career-pick" class="screen">
+      <header><button class="back" data-go="menu">‹</button><h2>КАРЬЕРА</h2></header>
+      <p class="note">Выберите клуб КХЛ, за который будете играть.</p>
+      <div id="career-clubs"></div>
+    </section>
+
+    <!-- КАРЬЕРА: главный экран -->
+    <section id="screen-career" class="screen">
+      <header><button class="back" data-go="menu">‹</button><h2>КАРЬЕРА</h2></header>
+      <div id="career-hero"></div>
+      <input id="career-logo-input" class="vh" type="file" accept="image/*">
+      <div id="career-tiles" class="tiles"></div>
+      <button class="menu-btn full" id="btn-career-reset">СМЕНИТЬ КЛУБ</button>
+      <div style="height:24px"></div>
+    </section>
+
+    <!-- Подтверждение выбора клуба -->
+    <div id="career-confirm" class="overlay">
+      <div class="sheet">
+        <div id="cc-body"></div>
+        <button class="menu-btn full primary" id="cc-start">НАЧАТЬ КАРЬЕРУ</button>
+        <button class="menu-btn full" id="cc-cancel">ОТМЕНА</button>
+      </div>
+    </div>
+
     <!-- Окно выбора команды -->
     <div id="picker" class="overlay">
       <header><button class="back" id="picker-close">✕</button><h2>ВЫБОР КОМАНДЫ</h2></header>
@@ -273,8 +300,9 @@
     </div>
 
   </div>
-  <script src="engine.js?v=6"></script>
-  <script src="app.js?v=6"></script>
+  <script src="engine.js?v=7"></script>
+  <script src="khl.js?v=7"></script>
+  <script src="app.js?v=7"></script>
   <script type="module" src="cloud.js"></script>
 </body>
 </html>

@@ -265,3 +265,47 @@ table.std th:nth-child(n+3), table.std td:nth-child(n+3) { white-space: nowrap; 
 .gchips span { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1); }
 .gchips span.tw { border-color: rgba(255,255,255,.35); }
 .s-note { margin-top: 8px; font-size: 12px; color: var(--text2); }
+
+/* ---------- Карьера ---------- */
+.chev { color: var(--text2); font-size: 26px; padding: 0 4px; }
+.club-emb {
+  position: relative; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; overflow: hidden;
+  background: var(--c); background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 70%, #fff), var(--c) 70%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 3px 10px rgba(0,0,0,.45);
+}
+.club-emb .ph { color: #fff; font-weight: 800; letter-spacing: .5px; text-shadow: 0 1px 3px rgba(0,0,0,.55); }
+.club-emb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: none; }
+.club-emb.hasimg { background: none; box-shadow: none; overflow: visible; }
+.club-emb.hasimg .ph { display: none; }
+.club-emb.hasimg img { display: block; filter: drop-shadow(0 3px 6px rgba(0,0,0,.5)); }
+#career-confirm.open { display: flex; align-items: center; justify-content: center; }
+.sheet {
+  width: 100%; max-width: 360px; padding: 24px 20px 20px; text-align: center; border-radius: 32px;
+  background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  border: 1px solid rgba(255,255,255,.22); box-shadow: var(--shine), 0 24px 60px rgba(0,0,0,.6);
+}
+.sheet-emb { display: flex; justify-content: center; margin-bottom: 12px; }
+.sheet h2 { font-size: 24px; margin-bottom: 6px; }
+.hero {
+  position: relative; text-align: center; padding: 22px 16px 18px; border-radius: 32px; margin-bottom: 16px;
+  background: var(--glass);
+  background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--c) 50%, transparent), transparent 70%), var(--glass);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  border: 1px solid var(--edge); box-shadow: var(--shine), var(--drop), 0 0 50px -14px var(--c);
+}
+.hero-emb { position: relative; background: none; border: none; padding: 0; margin: 0 auto 10px; display: block; width: fit-content; color: #fff; }
+.hero-emb .cam { position: absolute; right: -6px; bottom: -4px; font-size: 16px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(0,0,0,.55); border: 1px solid var(--edge); }
+.hero-name { font-size: 30px; font-weight: 800; letter-spacing: 1px; text-shadow: 0 2px 18px rgba(255,255,255,.2); }
+.hero-sub { color: var(--text2); font-size: 14px; margin-top: 2px; }
+.hero-chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 12px 0 6px; }
+.hero-chips span { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 650; background: rgba(255,255,255,.12); border: 1px solid var(--edge); }
+.linkbtn.inline { display: inline; margin: 0; font-size: 12px; }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.tile {
+  display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: 26px; min-height: 112px; justify-content: flex-end;
+  background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  border: 1px solid var(--edge); box-shadow: var(--shine), var(--drop); opacity: .9;
+}
+.tile .ti { font-size: 30px; margin-bottom: auto; }
+.tile b { font-size: 16px; }
+.tile small { color: var(--text2); font-size: 12px; }

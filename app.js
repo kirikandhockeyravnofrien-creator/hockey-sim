@@ -4,7 +4,7 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-const APP_VERSION = '6';
+const APP_VERSION = '7';
 
 
 // ---------- Хранилище ----------
@@ -37,6 +37,11 @@ function showScreen(name) {
   if (name === 'quick') { matchReturn = 'quick'; matchCallback = null; renderQuickSetup(); }
   if (name === 'tournaments') renderTournaments();
   if (name === 'tournament') renderTournamentView();
+  if (name === 'career-pick') renderCareerPick();
+  if (name === 'career') {
+    if (!getCareer()) { showScreen('career-pick'); return; }
+    renderCareer();
+  }
 }
 document.querySelectorAll('[data-go]').forEach(btn => {
   btn.addEventListener('click', () => showScreen(btn.dataset.go));
@@ -1054,10 +1059,12 @@ $('btn-po-all').addEventListener('click', () => {
 });
 
 // ---------- Список турниров ----------
+const isUserTournament = t => !t.type || t.type === 'tournament' || t.type === 'playoff';
 function renderTournaments() {
   const box = $('tour-list');
-  if (!tournaments.length) { box.innerHTML = '<p class="placeholder">Турниров пока нет</p>'; return; }
-  box.innerHTML = tournaments.map(t => {
+  const shown = tournaments.filter(isUserTournament);
+  if (!shown.length) { box.innerHTML = '<p class="placeholder">Турниров пока нет</p>'; return; }
+  box.innerHTML = shown.map(t => {
     let info;
     if (isPlayoffOnly(t)) info = `Плей-офф · ${t.teams.length} команд · ${boText(t.po.bestOf)}`;
     else {
@@ -1286,6 +1293,110 @@ $('btn-create-tour').addEventListener('click', () => {
   saveTournaments();
   currentTourId = t.id; viewTour = 1; tvTab = isPO ? 'playoff' : 'table';
   showScreen('tournament');
+});
+
+// =====================  КАРЬЕРА  =====================
+// Данные карьеры хранятся как служебные записи рядом с турнирами (они синхронизируются с облаком
+// вместе с остальным, но в списке турниров не показываются):
+//   type 'career'     — выбранный клуб и сезон;
+//   type 'khl-assets' — эмблемы клубов, загруженные из галереи.
+const SEASON_LABEL = '2026/27';
+const getCareer = () => tournaments.find(t => t.type === 'career') || null;
+const getAssets = () => tournaments.find(t => t.type === 'khl-assets') || null;
+function metaRecord(type) {
+  let r = tournaments.find(t => t.type === type);
+  if (!r) {
+    r = { id: newId(tournaments), type, name: type, teams: [], matches: [], tours: 0, emblem: { icon: '🏒', color: '#555555' } };
+    tournaments.push(r);
+  }
+  return r;
+}
+const clubById = id => KHL_CLUBS.find(c => c.id === id) || null;
+const confName = c => c.conf === 'west' ? 'Западная конференция' : 'Восточная конференция';
+
+// Эмблема клуба: загруженная из галереи > файл assets/clubs/<id>.png > значок с буквами клуба
+function clubEmblemHTML(c, size = 48) {
+  const a = getAssets();
+  const src = (a && a.logos && a.logos[c.id]) || `assets/clubs/${c.id}.png`;
+  return `<div class="club-emb" style="width:${size}px;height:${size}px;--c:${c.color}">` +
+    `<span class="ph" style="font-size:${Math.round(size * 0.3)}px">${esc(c.short)}</span>` +
+    `<img src="${src}" alt="" onload="this.parentNode.classList.add('hasimg')" onerror="this.remove()"></div>`;
+}
+
+function renderCareerPick() {
+  const box = $('career-clubs');
+  box.innerHTML = ['west', 'east'].map(conf => {
+    const list = KHL_CLUBS.filter(c => c.conf === conf).sort((a, b) => b.rating - a.rating);
+    return `<h3 class="conf-title">${conf === 'west' ? 'ЗАПАД' : 'ВОСТОК'}</h3>` + list.map(c =>
+      `<div class="team-row pick-row" data-club="${c.id}">${clubEmblemHTML(c, 44)}` +
+      `<div class="info"><div class="name">${esc(c.name)}</div><div class="rating">${esc(c.city)} · рейтинг ${c.rating}</div></div>` +
+      `<span class="chev">›</span></div>`).join('');
+  }).join('');
+  box.querySelectorAll('[data-club]').forEach(el => el.addEventListener('click', () => openClubConfirm(el.dataset.club)));
+}
+
+let pendingClub = null;
+function openClubConfirm(id) {
+  const c = clubById(id);
+  if (!c) return;
+  pendingClub = id;
+  $('cc-body').innerHTML = `<div class="sheet-emb">${clubEmblemHTML(c, 96)}</div><h2>${esc(c.name)}</h2>` +
+    `<p class="note">${esc(c.city)} · ${confName(c)}<br>Рейтинг клуба: ${c.rating}</p>`;
+  $('career-confirm').classList.add('open');
+}
+$('cc-cancel').addEventListener('click', () => $('career-confirm').classList.remove('open'));
+$('cc-start').addEventListener('click', () => {
+  if (!pendingClub) return;
+  const rec = metaRecord('career');
+  rec.clubId = pendingClub;
+  rec.season = SEASON_LABEL;
+  rec.startedAt = Date.now();
+  saveTournaments();
+  $('career-confirm').classList.remove('open');
+  showScreen('career');
+});
+
+const CAREER_TILES = [['👥', 'Состав'], ['📅', 'Календарь'], ['📊', 'Таблица КХЛ'], ['🔁', 'Трансферы'], ['💰', 'Финансы'], ['🏆', 'Кубок Гагарина']];
+function renderCareer() {
+  const cr = getCareer(), c = cr && clubById(cr.clubId);
+  if (!c) { showScreen('career-pick'); return; }
+  const a = getAssets();
+  const hasUpload = !!(a && a.logos && a.logos[c.id]);
+  $('career-hero').innerHTML = `<div class="hero" style="--c:${c.color}">` +
+    `<button class="hero-emb" id="hero-emb">${clubEmblemHTML(c, 112)}<span class="cam">📷</span></button>` +
+    `<div class="hero-name">${esc(c.name)}</div>` +
+    `<div class="hero-sub">${esc(c.city)} · ${confName(c)}</div>` +
+    `<div class="hero-chips"><span>Сезон ${esc(cr.season || SEASON_LABEL)}</span><span>Рейтинг клуба ${c.rating}</span></div>` +
+    `<p class="note">Нажмите на эмблему, чтобы загрузить настоящую из галереи.` +
+    (hasUpload ? ` <button class="linkbtn inline" id="hero-emb-clear">Убрать загруженную</button>` : '') + `</p></div>`;
+  $('hero-emb').addEventListener('click', () => $('career-logo-input').click());
+  const clr = $('hero-emb-clear');
+  if (clr) clr.addEventListener('click', () => {
+    const rec = getAssets();
+    if (rec && rec.logos) { delete rec.logos[c.id]; saveTournaments(); renderCareer(); }
+  });
+  $('career-tiles').innerHTML = CAREER_TILES.map(([i, t]) =>
+    `<div class="tile"><span class="ti">${i}</span><b>${t}</b><small>Скоро</small></div>`).join('');
+}
+$('career-logo-input').addEventListener('change', e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  const cr = getCareer();
+  if (!f || !cr) return;
+  readImage(f, url => {
+    const rec = metaRecord('khl-assets');
+    rec.logos = rec.logos || {};
+    rec.logos[cr.clubId] = url;
+    saveTournaments();
+    renderCareer();
+  });
+});
+$('btn-career').addEventListener('click', () => showScreen(getCareer() ? 'career' : 'career-pick'));
+$('btn-career-reset').addEventListener('click', () => {
+  if (!confirm('Сменить клуб? Прогресс карьеры будет сброшен.')) return;
+  tournaments = tournaments.filter(t => t.type !== 'career');
+  saveTournaments();
+  showScreen('career-pick');
 });
 
 // =====================  Мост к cloud.js  =====================
