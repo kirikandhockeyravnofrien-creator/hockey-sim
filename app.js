@@ -4,7 +4,6 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-const APP_VERSION = '8';
 
 
 // ---------- Хранилище ----------
@@ -33,6 +32,8 @@ function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   $('screen-' + name).classList.add('active');
   window.scrollTo(0, 0);
+  if (name === 'menu') { hideSplash(); renderMenuInfo(); }
+  if (name === 'auth' && $('auth-form').style.display !== 'none') hideSplash();   // форма входа готова
   if (name === 'teams') renderTeams();
   if (name === 'quick') { matchReturn = 'quick'; matchCallback = null; renderQuickSetup(); }
   if (name === 'tournaments') renderTournaments();
@@ -1475,21 +1476,80 @@ window.App = {
   }
 };
 
-// ---------- Версия и принудительное обновление ----------
-$('app-ver').textContent = 'Версия ' + APP_VERSION;
-if (typeof Engine === 'undefined' || Engine.VERSION !== 2) {
-  $('app-warn').textContent = '⚠ Файл engine.js устарел. Загрузите новую версию engine.js на GitHub и нажмите «Обновить игру».';
+// ---------- Заставка при запуске ----------
+const splash = { t0: Date.now(), done: false };
+function hideSplash() {
+  if (splash.done) return;
+  splash.done = true;
+  const el = $('splash');
+  if (!el) return;
+  const wait = Math.max(0, 1300 - (Date.now() - splash.t0));      // показываем минимум ~1.3 с, чтобы анимация не мелькала
+  setTimeout(() => { el.classList.add('hide'); setTimeout(() => el.remove(), 800); }, wait);
 }
-async function hardRefresh() {
+setTimeout(() => {
+  if (splash.done) return;
+  $('splash-msg').innerHTML = 'Долго загружается… проверьте интернет<br><button class="linkbtn" id="splash-retry">Повторить</button>';
+  $('splash-retry').addEventListener('click', () => location.reload());
+}, 10000);
+
+// ---------- Верхняя панель и патч-ноут ----------
+// Версия = число записей в patchnotes.js. Дата и время = момент, когда файл патч-ноута появился на сайте
+// (заголовок Last-Modified); первое увиденное время сохраняется в облаке рядом с остальными данными.
+const patchVersion = () => (typeof PATCH_NOTES !== 'undefined' ? PATCH_NOTES.length : 0);
+const fmtDateTime = iso => {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+let patchSiteTime;        // undefined — ещё не узнавали; null — узнать не удалось
+async function loadPatchSiteTime() {
+  if (patchSiteTime !== undefined) return patchSiteTime;
+  patchSiteTime = null;
   try {
-    if ('serviceWorker' in navigator) {
-      (await navigator.serviceWorker.getRegistrations()).forEach(r => r.unregister());
-    }
-    if (window.caches) (await caches.keys()).forEach(k => caches.delete(k));
-  } catch (e) { /* ничего страшного */ }
-  location.replace(location.pathname + '?r=' + Date.now());   // новый адрес = свежая загрузка
+    const r = await fetch('patchnotes.js', { cache: 'no-cache' });
+    const lm = r.headers.get('Last-Modified');
+    if (lm && !isNaN(new Date(lm))) patchSiteTime = new Date(lm).toISOString();
+  } catch (e) { /* без интернета — возьмём текущее время */ }
+  return patchSiteTime;
 }
-$('btn-refresh').addEventListener('click', hardRefresh);
+let patchOpen = false;
+function renderPatch() {
+  const notes = typeof PATCH_NOTES !== 'undefined' ? PATCH_NOTES : [];
+  const N = notes.length;
+  const rec = tournaments.find(t => t.type === 'patch-log');
+  const times = (rec && rec.times) || {};
+  const card = (lines, i) => {
+    const v = N - i, tm = times[v] ? fmtDateTime(times[v]) : '';
+    return `<div class="patch-card ${i === 0 ? 'latest' : ''}"><div class="pc-head"><b>Версия ${v}</b><span>${tm}</span></div>` +
+      `<ul>${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul></div>`;
+  };
+  const shown = patchOpen ? notes : notes.slice(0, 1);
+  $('patch-list').innerHTML = shown.map((l, i) => card(l, i)).join('');
+  $('patch-more').textContent = patchOpen ? 'Скрыть прошлые версии' : 'Показать прошлые версии';
+  $('patch-more').style.display = N > 1 ? 'block' : 'none';
+}
+$('patch-more').addEventListener('click', () => { patchOpen = !patchOpen; renderPatch(); });
+
+async function renderMenuInfo() {
+  const N = patchVersion();
+  $('app-ver').textContent = 'Версия ' + N;
+  if (typeof Engine === 'undefined' || Engine.VERSION !== 2) {
+    $('app-warn').textContent = '⚠ Файл engine.js устарел. Загрузите новую версию engine.js на GitHub.';
+  }
+  renderPatch();
+  if (!N) return;
+  const rec0 = tournaments.find(t => t.type === 'patch-log');
+  if (rec0 && rec0.times && rec0.times[N]) return;               // время этой версии уже записано
+  const site = await loadPatchSiteTime();
+  const rec = metaRecord('patch-log');
+  rec.times = rec.times || {};
+  if (!rec.times[N]) {
+    rec.times[N] = site || new Date().toISOString();
+    saveTournaments();
+  }
+  renderPatch();
+}
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));

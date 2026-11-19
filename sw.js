@@ -1,5 +1,5 @@
-const CACHE = 'hockey-sim-v8';
-const FILES = ['./', './index.html', './style.css', './app.js', './engine.js', './khl.js', './rosters.js',
+const CACHE = 'hockey-sim-v9';
+const FILES = ['./', './index.html', './style.css', './app.js', './engine.js', './khl.js', './rosters.js', './patchnotes.js',
                './cloud.js', './manifest.json', './icons/icon-192.png'];
 
 self.addEventListener('install', e => {
