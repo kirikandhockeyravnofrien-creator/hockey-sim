@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Pro Hockey Sim">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#000000">
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
   <div id="app">
@@ -280,6 +280,13 @@
       <div style="height:24px"></div>
     </section>
 
+    <!-- КАРЬЕРА: состав клуба -->
+    <section id="screen-roster" class="screen">
+      <header><button class="back" data-go="career">‹</button><h2>СОСТАВ</h2></header>
+      <div id="roster-head"></div>
+      <div id="roster-list"></div>
+    </section>
+
     <!-- Подтверждение выбора клуба -->
     <div id="career-confirm" class="overlay">
       <div class="sheet">
@@ -300,9 +307,10 @@
     </div>
 
   </div>
-  <script src="engine.js?v=7"></script>
-  <script src="khl.js?v=7"></script>
-  <script src="app.js?v=7"></script>
+  <script src="engine.js?v=8"></script>
+  <script src="khl.js?v=8"></script>
+  <script src="rosters.js?v=8"></script>
+  <script src="app.js?v=8"></script>
   <script type="module" src="cloud.js"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-const APP_VERSION = '7';
+const APP_VERSION = '8';
 
 
 // ---------- Хранилище ----------
@@ -38,6 +38,7 @@ function showScreen(name) {
   if (name === 'tournaments') renderTournaments();
   if (name === 'tournament') renderTournamentView();
   if (name === 'career-pick') renderCareerPick();
+  if (name === 'roster') renderRoster();
   if (name === 'career') {
     if (!getCareer()) { showScreen('career-pick'); return; }
     renderCareer();
@@ -1356,7 +1357,7 @@ $('cc-start').addEventListener('click', () => {
   showScreen('career');
 });
 
-const CAREER_TILES = [['👥', 'Состав'], ['📅', 'Календарь'], ['📊', 'Таблица КХЛ'], ['🔁', 'Трансферы'], ['💰', 'Финансы'], ['🏆', 'Кубок Гагарина']];
+const CAREER_TILES = [['👥', 'Состав', 'roster'], ['📅', 'Календарь'], ['📊', 'Таблица КХЛ'], ['🔁', 'Трансферы'], ['💰', 'Финансы'], ['🏆', 'Кубок Гагарина']];
 function renderCareer() {
   const cr = getCareer(), c = cr && clubById(cr.clubId);
   if (!c) { showScreen('career-pick'); return; }
@@ -1375,8 +1376,12 @@ function renderCareer() {
     const rec = getAssets();
     if (rec && rec.logos) { delete rec.logos[c.id]; saveTournaments(); renderCareer(); }
   });
-  $('career-tiles').innerHTML = CAREER_TILES.map(([i, t]) =>
-    `<div class="tile"><span class="ti">${i}</span><b>${t}</b><small>Скоро</small></div>`).join('');
+  $('career-tiles').innerHTML = CAREER_TILES.map(([i, t, go]) => {
+    const ready = go === 'roster' && !!(typeof KHL_ROSTERS !== 'undefined' && KHL_ROSTERS[c.id]);
+    return `<div class="tile ${ready ? 'ready' : ''}" ${ready ? `data-tile="${go}"` : ''}><span class="ti">${i}</span><b>${t}</b>` +
+      `<small>${ready ? `${KHL_ROSTERS[c.id].players.length} ${plural(KHL_ROSTERS[c.id].players.length, ['игрок', 'игрока', 'игроков'])} ›` : (go === 'roster' ? 'Состав скоро' : 'Скоро')}</small></div>`;
+  }).join('');
+  $('career-tiles').querySelectorAll('[data-tile]').forEach(el => el.addEventListener('click', () => showScreen(el.dataset.tile)));
 }
 $('career-logo-input').addEventListener('change', e => {
   const f = e.target.files[0];
@@ -1398,6 +1403,57 @@ $('btn-career-reset').addEventListener('click', () => {
   saveTournaments();
   showScreen('career-pick');
 });
+
+
+// ---------- Состав клуба ----------
+const POS_TITLE = { G: 'ВРАТАРИ', D: 'ЗАЩИТНИКИ', F: 'НАПАДАЮЩИЕ' };
+const POS_ORDER = ['G', 'D', 'F'];
+const plural = (n, f) => { const a = n % 100, b = n % 10; return f[a > 10 && a < 20 ? 2 : b === 1 ? 0 : b > 1 && b < 5 ? 1 : 2]; };
+function ageOf(born) {
+  const b = new Date(born), n = new Date();
+  let a = n.getFullYear() - b.getFullYear();
+  if (n < new Date(n.getFullYear(), b.getMonth(), b.getDate())) a--;
+  return a;
+}
+// Рейтинг состава: нападающие (12 лучших) 45% + защитники (6 лучших) 30% + основной вратарь 25%
+function rosterRating(players) {
+  const top = (pos, n) => players.filter(p => p.pos === pos).map(p => p.r).sort((a, b) => b - a).slice(0, n);
+  const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  const g = top('G', 1)[0] || 0;
+  return 0.45 * avg(top('F', 12)) + 0.30 * avg(top('D', 6)) + 0.25 * g;
+}
+const ratingClass = r => r >= 85 ? 'r-gold' : r >= 80 ? 'r-green' : r >= 70 ? 'r-blue' : 'r-gray';
+// Фото игрока: assets/players/<клуб>/<slug>.jpg, затем .png; нет файла — круг с инициалами
+function playerPhotoHTML(club, p, size = 48) {
+  const base = `assets/players/${club.id}/${p.slug}`;
+  const parts = p.name.split(' ');
+  const ini = (parts[0][0] || '') + ((parts[parts.length - 1] || '')[0] || '');   // имя + фамилия: «Александр Самонов» -> АС
+  return `<div class="p-photo" style="width:${size}px;height:${size}px;--c:${club.color}">` +
+    `<span class="ph" style="font-size:${Math.round(size * 0.34)}px">${esc(ini)}</span>` +
+    `<img src="${base}.jpg" alt="" onload="this.parentNode.classList.add('hasimg')" ` +
+    `onerror="if(!this.dataset.t){this.dataset.t=1;this.src='${base}.png'}else{this.remove()}"></div>`;
+}
+function renderRoster() {
+  const cr = getCareer(), c = cr && clubById(cr.clubId);
+  const R = c && typeof KHL_ROSTERS !== 'undefined' ? KHL_ROSTERS[c.id] : null;
+  if (!c || !R) { showScreen('career'); return; }
+  const pl = R.players;
+  const avgAge = pl.reduce((s, p) => s + ageOf(p.born), 0) / pl.length;
+  $('roster-head').innerHTML = `<div class="hero small" style="--c:${c.color}">` +
+    `<div class="hero-row">${clubEmblemHTML(c, 56)}<div><div class="hero-name sm">${esc(c.name)}</div>` +
+    `<div class="hero-sub">Состав на ${R.updated.split('-').reverse().join('.')}</div></div></div>` +
+    `<div class="hero-chips"><span>${pl.length} ${plural(pl.length, ['игрок', 'игрока', 'игроков'])}</span><span>Ср. возраст ${avgAge.toFixed(1)}</span>` +
+    `<span>Рейтинг состава ${Math.round(rosterRating(pl))}</span></div>` +
+    `<p class="note">Рейтинги игроков предварительные — оценка автора, не официальные. Состав: ${esc(R.source)}.</p></div>`;
+  $('roster-list').innerHTML = POS_ORDER.map(pos => {
+    const list = pl.filter(p => p.pos === pos).sort((a, b) => b.r - a.r || a.name.localeCompare(b.name, 'ru'));
+    return `<h3 class="conf-title">${POS_TITLE[pos]} · ${list.length}</h3>` + list.map(p =>
+      `<div class="team-row p-row">${playerPhotoHTML(c, p, 48)}` +
+      `<div class="info"><div class="name">${esc(p.name)}</div>` +
+      `<div class="rating">${p.n != null ? '№' + p.n + ' · ' : ''}${ageOf(p.born)} ${plural(ageOf(p.born), ['год', 'года', 'лет'])}</div></div>` +
+      `<span class="r-badge ${ratingClass(p.r)}">${p.r}</span></div>`).join('');
+  }).join('');
+}
 
 // =====================  Мост к cloud.js  =====================
 window.App = {

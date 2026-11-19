@@ -309,3 +309,22 @@ table.std th:nth-child(n+3), table.std td:nth-child(n+3) { white-space: nowrap; 
 .tile .ti { font-size: 30px; margin-bottom: auto; }
 .tile b { font-size: 16px; }
 .tile small { color: var(--text2); font-size: 12px; }
+
+/* ---------- Состав клуба ---------- */
+.tile.ready { opacity: 1; cursor: pointer; border-color: rgba(255,255,255,.3); }
+.tile.ready small { color: #fff; font-weight: 650; }
+.hero.small { padding: 16px; text-align: left; margin-bottom: 8px; }
+.hero-row { display: flex; align-items: center; gap: 14px; }
+.hero-name.sm { font-size: 22px; }
+.hero.small .hero-chips { justify-content: flex-start; }
+.p-photo { position: relative; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; overflow: hidden;
+  background: linear-gradient(145deg, rgba(255,255,255,.22), rgba(255,255,255,.06)); box-shadow: inset 0 0 0 2px var(--c), 0 3px 10px rgba(0,0,0,.45); }
+.p-photo .ph { color: #fff; font-weight: 800; letter-spacing: .5px; opacity: .85; }
+.p-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+.p-photo.hasimg img { display: block; }
+.p-photo.hasimg .ph { display: none; }
+.r-badge { min-width: 46px; text-align: center; padding: 8px 0; border-radius: 14px; font-size: 18px; font-weight: 800; color: #fff; border: 1px solid rgba(255,255,255,.25); }
+.r-gold { background: linear-gradient(145deg, #f7d44a, #d89b00); color: #1a1300; }
+.r-green { background: linear-gradient(145deg, #3ddc72, #1f9d55); }
+.r-blue { background: linear-gradient(145deg, #4ea1ff, #2b6fd1); }
+.r-gray { background: linear-gradient(145deg, #7d7d86, #55555c); }
