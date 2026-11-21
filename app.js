@@ -28,9 +28,37 @@ function saveTournaments() { Store.save('tournaments', tournaments); window.Clou
 let matchReturn = 'quick';   // куда ведёт «‹» на экране матча
 let matchCallback = null;    // что сделать, когда матч закончился
 
+// История переходов нужна, чтобы «вперёд» и «назад» анимировались в разные стороны
+let navHist = ['menu'];
+function navDirection(name) {
+  const h = navHist;
+  if (h[h.length - 1] === name) return 'same';
+  if (h.length >= 2 && h[h.length - 2] === name) { h.pop(); return 'back'; }
+  if (name === 'menu') { navHist = ['menu']; return 'back'; }
+  h.push(name);
+  if (h.length > 30) h.shift();
+  return 'fwd';
+}
+const ENTER_SEL = 'header, .menu-btn, .team-row, .tile, .patch-card, .series, .game, .lt-row, .qm-card, .hero, .menu-top, .stat-row, .seg, .note, .conf-title, .chips';
+// Элементы экрана по очереди «всплывают» при открытии
+function playEnter(sc) {
+  sc.querySelectorAll(ENTER_SEL).forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
+  sc.classList.add('enter');
+  clearTimeout(sc._enterT);
+  sc._enterT = setTimeout(() => sc.classList.remove('enter'), 1100);
+}
+// Короткая анимация смены содержимого (переключение вкладок)
+function swapAnim(el) {
+  if (!el) return;
+  el.classList.remove('swap');
+  void el.offsetWidth;
+  el.classList.add('swap');
+}
 function showScreen(name) {
+  document.body.dataset.dir = navDirection(name);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  $('screen-' + name).classList.add('active');
+  const sc = $('screen-' + name);
+  sc.classList.add('active');
   window.scrollTo(0, 0);
   if (name === 'menu') { hideSplash(); renderMenuInfo(); }
   if (name === 'auth' && $('auth-form').style.display !== 'none') hideSplash();   // форма входа готова
@@ -41,9 +69,10 @@ function showScreen(name) {
   if (name === 'career-pick') renderCareerPick();
   if (name === 'roster') renderRoster();
   if (name === 'career') {
-    if (!getCareer()) { showScreen('career-pick'); return; }
+    if (!getCareer()) { navHist.pop(); showScreen('career-pick'); return; }
     renderCareer();
   }
+  playEnter(sc);
 }
 document.querySelectorAll('[data-go]').forEach(btn => {
   btn.addEventListener('click', () => showScreen(btn.dataset.go));
@@ -52,9 +81,16 @@ document.querySelectorAll('[data-go]').forEach(btn => {
 function setSeg(id, v) {
   $(id).querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.v === v));
 }
+const SEG_SWAP = {
+  'teams-tabs': () => $('team-list'), 'picker-tabs': () => $('picker-list'), 'te-tabs': () => $('te-teams'),
+  'tv-tabs': () => ({ table: $('tv-table'), matches: $('tv-matches'), playoff: $('tv-playoff') })[tvTab]
+};
 function bindSeg(id, cb) {
   $(id).querySelectorAll('button').forEach(b =>
-    b.addEventListener('click', () => { setSeg(id, b.dataset.v); cb(b.dataset.v); }));
+    b.addEventListener('click', () => {
+      setSeg(id, b.dataset.v); cb(b.dataset.v);
+      if (SEG_SWAP[id]) swapAnim(SEG_SWAP[id]());
+    }));
 }
 
 // ---------- Эмблемы, флаги, картинки ----------
@@ -957,7 +993,7 @@ function renderPlayoff(t) {
   }
   box.innerHTML = html;
 
-  box.querySelectorAll('[data-stage]').forEach(b => b.addEventListener('click', () => { poStage = Number(b.dataset.stage); renderTournamentView(); }));
+  box.querySelectorAll('[data-stage]').forEach(b => b.addEventListener('click', () => { poStage = Number(b.dataset.stage); renderTournamentView(); swapAnim($('po-view')); }));
   const ref = id => findSeries(st, id);
   const after = () => { saveTournaments(); poStage = activeStage(st); renderTournamentView(); };
   box.querySelectorAll('[data-po-q]').forEach(b => b.addEventListener('click', () => {
@@ -1475,6 +1511,24 @@ window.App = {
     return { teams: g('teams'), tournaments: g('tournaments') };
   }
 };
+
+// ---------- Нажатия: волна света под пальцем ----------
+const RIPPLE_SEL = '.menu-btn, .team-row.pick-row, .tile.ready, .qm-card, .seg button, .chip, .back, .conf-btn, ' +
+  '.gbtn button, .speed button, label.upload-btn, .mini, .pick, .tour-nav button, .menu-top button';
+document.addEventListener('pointerdown', e => {
+  const el = e.target.closest && e.target.closest(RIPPLE_SEL);
+  if (!el || el.disabled) return;
+  const r = el.getBoundingClientRect();
+  const size = Math.max(r.width, r.height) * 2.2;
+  const box = document.createElement('span');
+  box.className = 'rpl';
+  const dot = document.createElement('i');
+  dot.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - r.left - size / 2}px;top:${e.clientY - r.top - size / 2}px`;
+  box.appendChild(dot);
+  el.appendChild(box);
+  setTimeout(() => box.remove(), 700);
+}, { passive: true });
+document.addEventListener('touchstart', () => {}, { passive: true });   // включает :active на iPhone для всех элементов
 
 // ---------- Заставка при запуске ----------
 const splash = { t0: Date.now(), done: false };

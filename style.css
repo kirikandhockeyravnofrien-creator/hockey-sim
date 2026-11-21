@@ -385,3 +385,49 @@ table.std th:nth-child(n+3), table.std td:nth-child(n+3) { white-space: nowrap; 
 .r-green { background: linear-gradient(145deg, #3ddc72, #1f9d55); }
 .r-blue { background: linear-gradient(145deg, #4ea1ff, #2b6fd1); }
 .r-gray { background: linear-gradient(145deg, #7d7d86, #55555c); }
+
+/* ---------- Анимации: нажатия и переходы ---------- */
+.menu-btn, .team-row.pick-row, .tile.ready, .qm-card, .seg button, .chip, .back, .conf-btn, .gbtn button, .speed button,
+label.upload-btn, .mini, .pick, .tour-nav button, .menu-top button, .del {
+  position: relative; -webkit-user-select: none; user-select: none; touch-action: manipulation;
+  transition: transform .42s cubic-bezier(.34, 1.56, .64, 1), filter .25s ease, background .2s ease, border-color .2s ease, box-shadow .25s ease, color .2s ease;
+}
+.menu-btn:active, .gbtn button:active, .speed button:active, .seg button:active, .chip:active, .back:active, .conf-btn:active,
+label.upload-btn:active, .mini:active, .tour-nav button:active, .menu-top button:active, .tile.ready:active, .qm-card:active {
+  transform: scale(.95); filter: brightness(1.22); transition-duration: .09s, .09s, .2s, .2s, .25s, .2s;
+}
+.team-row.pick-row:active { transform: scale(.975); transition-duration: .09s, .25s, .2s, .2s, .25s, .2s; }
+.pick:active { transform: scale(.86); transition-duration: .09s; }
+.del:active { transform: scale(.8); transition-duration: .09s; }
+.menu-btn:disabled:active { transform: none; filter: none; }
+.rpl { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.rpl i { position: absolute; border-radius: 50%; transform: scale(0); opacity: 1;
+  background: radial-gradient(circle, rgba(255,255,255,.45) 0%, rgba(255,255,255,.16) 45%, rgba(255,255,255,0) 70%);
+  animation: rippleOut .7s cubic-bezier(.2, .7, .3, 1) forwards; }
+@keyframes rippleOut { to { transform: scale(1); opacity: 0; } }
+
+/* переход между окнами: окно слегка выезжает, элементы всплывают по очереди */
+.screen.active { animation: screenSlide .45s cubic-bezier(.2, .8, .2, 1) backwards; }
+body[data-dir="back"] .screen.active { animation-name: screenSlideBack; }
+body[data-dir="same"] .screen.active { animation: none; }
+@keyframes screenSlide { from { transform: translateX(30px); } to { transform: none; } }
+@keyframes screenSlideBack { from { transform: translateX(-30px); } to { transform: none; } }
+.screen.enter :is(header, .menu-btn, .team-row, .tile, .patch-card, .series, .game, .lt-row, .qm-card, .hero, .menu-top, .stat-row, .seg, .note, .conf-title, .chips) {
+  animation: rise .55s cubic-bezier(.2, .8, .2, 1) backwards; animation-delay: calc(var(--i, 0) * 38ms + 30ms);
+}
+@keyframes rise { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* переключение вкладок и стадий */
+.swap { animation: swapIn .4s cubic-bezier(.2, .8, .2, 1) backwards; }
+@keyframes swapIn { from { transform: translateY(14px) scale(.985); } to { transform: none; } }
+
+/* окна поверх экрана */
+.overlay.open { animation: overlayIn .28s ease backwards; }
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+.sheet { animation: sheetIn .5s cubic-bezier(.2, .9, .3, 1.25) backwards; }
+@keyframes sheetIn { from { opacity: 0; transform: translateY(26px) scale(.9); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen.active, .screen.enter *, .swap, .overlay.open, .sheet, .rpl i { animation: none !important; }
+  .menu-btn, .team-row.pick-row, .tile.ready, .qm-card, .seg button, .chip, .back { transition: none; }
+}
