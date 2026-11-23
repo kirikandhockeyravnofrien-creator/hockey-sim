@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Pro Hockey Sim">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#000000">
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
   <div id="splash" class="splash">
@@ -38,6 +38,7 @@
         <button class="menu-btn" data-go="quick">БЫСТРЫЙ МАТЧ</button>
         <button class="menu-btn" data-go="tournaments">ТУРНИРЫ</button>
         <button class="menu-btn" id="btn-career">КАРЬЕРА</button>
+        <button class="menu-btn" id="btn-puck">PUCK OPENER</button>
       </div>
       <div class="patch" id="patch">
         <h3 class="conf-title">ПАТЧ-НОУТ</h3>
@@ -63,38 +64,40 @@
     </section>
 
     <!-- КОМАНДЫ: список -->
-    <section id="screen-teams" class="screen">
-      <header><button class="back" data-go="menu">‹</button><h2>КОМАНДЫ</h2></header>
-      <div class="seg" id="teams-tabs">
-        <button data-v="club" class="active">КЛУБЫ</button>
-        <button data-v="national">СБОРНЫЕ</button>
+    <section id="screen-teams" class="screen col">
+      <div class="topbar">
+        <header><button class="back" data-go="menu">‹</button><h2>КОМАНДЫ</h2></header>
+        <div class="seg" id="teams-tabs">
+          <button data-v="club" class="active">КЛУБЫ</button>
+          <button data-v="national">СБОРНЫЕ</button>
+        </div>
       </div>
-      <div id="team-list" style="margin-top:14px"></div>
-      <button class="menu-btn add-btn primary" id="btn-new-team">+ НОВЫЙ КЛУБ</button>
+      <div id="team-list"></div>
+      <div class="bottombar"><button class="menu-btn primary" id="btn-new-team">+ НОВЫЙ КЛУБ</button></div>
     </section>
 
     <!-- КОМАНДЫ: создание -->
     <section id="screen-team-edit" class="screen">
-      <header><button class="back" data-go="teams">‹</button><h2 id="team-title">НОВЫЙ КЛУБ</h2></header>
-      <div id="emblem-preview" class="emblem-preview"></div>
+      <div class="topbar">
+        <header>
+          <button class="back" data-go="teams">‹</button><h2 id="team-title">НОВЫЙ КЛУБ</h2>
+          <button class="top-btn" id="btn-save-team">Сохранить</button>
+        </header>
+      </div>
+      <div class="logo-row">
+        <div id="emblem-preview" class="emblem-preview"></div>
+        <div class="logo-actions">
+          <label class="upload-btn" for="team-img">📷 Загрузить</label>
+          <input id="team-img" class="vh" type="file" accept="image/*">
+          <button class="mini" id="team-img-clear" style="display:none">🗑 Убрать</button>
+        </div>
+      </div>
       <label>Название</label>
-      <input id="team-name" type="text" maxlength="24" placeholder="Например, Ак Барс">
-      <label>Рейтинг: <b id="rating-value">75</b></label>
-      <input id="team-rating" type="range" min="0" max="99" value="75">
-      <div id="country-box">
-        <label>Страна (флаг)</label>
-        <select id="team-country"></select>
+      <input id="team-name" type="text" maxlength="24" autocomplete="off">
+      <div class="wheels">
+        <div class="wheel-col narrow"><label>Рейтинг</label><div id="wheel-rating"></div></div>
+        <div class="wheel-col" id="country-box"><label>Флаг</label><div id="wheel-country"></div></div>
       </div>
-      <label>Эмблема</label>
-      <div class="upload-row">
-        <label class="upload-btn" for="team-img">📷 Загрузить из галереи</label>
-        <input id="team-img" class="vh" type="file" accept="image/*">
-        <button class="mini" id="team-img-clear" style="display:none">Убрать фото</button>
-      </div>
-      <div id="icon-grid" class="grid"></div>
-      <label>Цвет</label>
-      <div id="color-grid" class="grid"></div>
-
       <label>Цвет команды в таблице</label>
       <div class="pipette-wrap" id="pipette-wrap">
         <canvas id="pipette" width="480" height="480"></canvas>
@@ -109,7 +112,7 @@
         <button class="mini" id="tcolor-auto" style="display:none">Авто</button>
       </div>
       <div id="color-preview"></div>
-      <button class="menu-btn primary" id="btn-save-team">СОХРАНИТЬ</button>
+      <div style="height:24px"></div>
     </section>
 
     <!-- БЫСТРЫЙ МАТЧ -->
@@ -148,32 +151,37 @@
     </section>
 
     <!-- ТУРНИРЫ: список -->
-    <section id="screen-tournaments" class="screen">
-      <header><button class="back" data-go="menu">‹</button><h2>ТУРНИРЫ</h2></header>
-      <div id="tour-list"></div>
-      <button class="menu-btn add-btn primary" id="btn-new-tour">+ НОВЫЙ ТУРНИР</button>
-      <button class="menu-btn add-btn" id="btn-new-playoff">+ ПЛЕЙ-ОФФ</button>
+    <section id="screen-tournaments" class="screen col">
+      <div class="topbar"><header><button class="back" data-go="menu">‹</button><h2>ТУРНИРЫ</h2></header></div>
+      <div id="tour-list" style="margin-top:12px"></div>
+      <div class="bottombar two">
+        <button class="menu-btn primary" id="btn-new-tour">+ ТУРНИР</button>
+        <button class="menu-btn" id="btn-new-playoff">+ ПЛЕЙ-ОФФ</button>
+      </div>
     </section>
 
     <!-- ТУРНИРЫ: создание -->
     <section id="screen-tournament-edit" class="screen">
-      <header><button class="back" data-go="tournaments">‹</button><h2 id="te-title">НОВЫЙ ТУРНИР</h2></header>
-      <div class="seg" id="te-kind">
-        <button data-v="tournament" class="active">ТУРНИР</button>
-        <button data-v="playoff">ПЛЕЙ-ОФФ</button>
+      <div class="topbar">
+        <header>
+          <button class="back" data-go="tournaments">‹</button><h2 id="te-title">НОВЫЙ ТУРНИР</h2>
+          <button class="top-btn" id="btn-create-tour">Создать</button>
+        </header>
+        <div class="seg" id="te-kind">
+          <button data-v="tournament" class="active">ТУРНИР</button>
+          <button data-v="playoff">ПЛЕЙ-ОФФ</button>
+        </div>
       </div>
-      <div id="te-emblem" class="emblem-preview"></div>
+      <div class="logo-row">
+        <div id="te-emblem" class="emblem-preview"></div>
+        <div class="logo-actions">
+          <label class="upload-btn" for="te-img">📷 Загрузить</label>
+          <input id="te-img" class="vh" type="file" accept="image/*">
+          <button class="mini" id="te-img-clear" style="display:none">🗑 Убрать</button>
+        </div>
+      </div>
       <label>Название</label>
-      <input id="te-name" type="text" maxlength="28" placeholder="Например, Кубок Гагарина">
-      <label>Эмблема</label>
-      <div class="upload-row">
-        <label class="upload-btn" for="te-img">📷 Загрузить из галереи</label>
-        <input id="te-img" class="vh" type="file" accept="image/*">
-        <button class="mini" id="te-img-clear" style="display:none">Убрать фото</button>
-      </div>
-      <div id="te-icons" class="grid"></div>
-      <label>Цвет</label>
-      <div id="te-colors" class="grid"></div>
+      <input id="te-name" type="text" maxlength="28" autocomplete="off">
 
       <div id="sec-preset">
         <label>Предустановка</label>
@@ -186,7 +194,7 @@
 
       <div id="sec-tours">
         <label>Количество туров</label>
-        <input id="te-tours" type="number" inputmode="numeric" min="1" max="400" value="10">
+        <div id="wheel-tours"></div>
         <label>Очков за победу</label>
         <div class="seg" id="te-pts">
           <button data-v="2">2 очка</button>
@@ -219,7 +227,7 @@
         <div id="po-opts" style="display:none">
           <div id="po-n-box">
             <label id="lbl-po-n">Сколько команд выходит в плей-офф</label>
-            <input id="te-po-n" type="number" inputmode="numeric" min="2" max="64" value="8">
+            <div id="wheel-pon"></div>
           </div>
           <div id="po-merge-box" style="display:none">
             <label>Общая сетка со 2-го раунда</label>
@@ -245,7 +253,6 @@
         <button data-v="national">СБОРНЫЕ</button>
       </div>
       <div id="te-teams" style="margin-top:12px"></div>
-      <button class="menu-btn full primary" id="btn-create-tour">СОЗДАТЬ ТУРНИР</button>
       <div style="height:24px"></div>
     </section>
 
@@ -300,6 +307,36 @@
       <div id="roster-list"></div>
     </section>
 
+    <!-- PUCK OPENER: главный экран -->
+    <section id="screen-puck" class="screen">
+      <div class="topbar"><header><button class="back" data-go="menu">‹</button><h2>PUCK OPENER</h2><span class="coins" id="puck-coins"></span></header></div>
+      <div id="puck-hub"></div>
+    </section>
+
+    <!-- PUCK OPENER: коллекция -->
+    <section id="screen-collection" class="screen col">
+      <div class="topbar">
+        <header><button class="back" data-go="puck">‹</button><h2>КОЛЛЕКЦИЯ</h2><span class="coins" id="coll-coins"></span></header>
+        <div class="seg" id="coll-tabs">
+          <button data-v="all" class="active">ВСЕ</button>
+          <button data-v="gold">ЗОЛОТО</button>
+          <button data-v="silver">СЕРЕБРО</button>
+          <button data-v="bronze">БРОНЗА</button>
+        </div>
+      </div>
+      <div id="coll-summary"></div>
+      <div id="coll-grid" class="coll-grid"></div>
+      <div class="bottombar"><button class="menu-btn" id="btn-sell-dups">Обменять дубликаты на шайбы</button></div>
+    </section>
+
+    <!-- PUCK OPENER: открытие пака -->
+    <div id="pack-open" class="overlay pack-overlay">
+      <div class="po-top"><span id="po-counter"></span><button class="mini" id="po-skip">Пропустить</button></div>
+      <div class="po-stage" id="po-stage"></div>
+      <div class="po-hint" id="po-hint"></div>
+      <div class="po-bottom"><button class="menu-btn primary" id="po-next" style="display:none">ДАЛЬШЕ</button></div>
+    </div>
+
     <!-- Подтверждение выбора клуба -->
     <div id="career-confirm" class="overlay">
       <div class="sheet">
@@ -320,11 +357,13 @@
     </div>
 
   </div>
-  <script src="engine.js?v=10"></script>
-  <script src="khl.js?v=10"></script>
-  <script src="rosters.js?v=10"></script>
+  <script src="wheel.js?v=11"></script>
+  <script src="engine.js?v=11"></script>
+  <script src="khl.js?v=11"></script>
+  <script src="rosters.js?v=11"></script>
   <script src="patchnotes.js"></script>
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
+  <script src="puck.js?v=11"></script>
   <script type="module" src="cloud.js"></script>
 </body>
 </html>

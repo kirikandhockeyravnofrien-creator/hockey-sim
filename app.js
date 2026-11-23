@@ -1,5 +1,12 @@
 // =====================  ОБЩЕЕ  =====================
 const $ = id => document.getElementById(id);
+// Заголовки экранов (стрелка «назад» + название) всегда остаются сверху — оборачиваем их в «липкую» панель
+document.querySelectorAll('.screen > header').forEach(h => {
+  const w = document.createElement('div');
+  w.className = 'topbar';
+  h.parentNode.insertBefore(w, h);
+  w.appendChild(h);
+});
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -22,12 +29,13 @@ const Store = {
 let teams = [];
 function saveTeams() { Store.save('teams', teams); window.Cloud?.queueSave(); }
 let tournaments = [];
-function saveTournaments() { Store.save('tournaments', tournaments); window.Cloud?.queueSave(); }
+function saveTournaments() { gcImages(); Store.save('tournaments', tournaments); window.Cloud?.queueSave(); }
 
 // ---------- Экраны ----------
 let matchReturn = 'quick';   // куда ведёт «‹» на экране матча
 let matchCallback = null;    // что сделать, когда матч закончился
 
+const SCREEN_HOOKS = {};   // отдельные файлы (например puck.js) подключают свои экраны сюда
 // История переходов нужна, чтобы «вперёд» и «назад» анимировались в разные стороны
 let navHist = ['menu'];
 function navDirection(name) {
@@ -68,6 +76,7 @@ function showScreen(name) {
   if (name === 'tournament') renderTournamentView();
   if (name === 'career-pick') renderCareerPick();
   if (name === 'roster') renderRoster();
+  if (SCREEN_HOOKS[name]) SCREEN_HOOKS[name]();
   if (name === 'career') {
     if (!getCareer()) { navHist.pop(); showScreen('career-pick'); return; }
     renderCareer();
@@ -97,11 +106,51 @@ function bindSeg(id, cb) {
 const ICONS = ['🦁','🐻','🐺','🦅','🐯','🦈','🐉','⚡','🔥','❄️','⭐','🛡️'];
 const COLORS = ['#c0392b','#2980b9','#27ae60','#f39c12','#8e44ad','#16a085','#2c3e50','#e84393'];
 
-function emblemHTML(e, size = 48) {
-  if (e.img) {
-    return `<div class="emblem img" style="width:${size}px;height:${size}px"><img src="${e.img}" alt=""></div>`;
+// Большие картинки хранятся отдельными записями (type 'img'), а в командах — только ссылка imgId.
+// Так один документ в облаке не раздувается и логотипы можно делать крупными.
+const imgCache = { src: null, len: -1, map: new Map() };
+function imgData(id) {
+  if (imgCache.src !== tournaments || imgCache.len !== tournaments.length) {
+    imgCache.src = tournaments; imgCache.len = tournaments.length; imgCache.map.clear();
+    tournaments.forEach(t => { if (t.type === 'img') imgCache.map.set(t.id, t.data); });
   }
-  return `<div class="emblem" style="width:${size}px;height:${size}px;background:${e.color};font-size:${Math.round(size * 0.55)}px">${e.icon}</div>`;
+  return imgCache.map.get(id) || '';
+}
+function putImage(dataURL) {
+  imgData(0);                                       // обновить кэш
+  for (const [id, d] of imgCache.map) if (d === dataURL) return id;
+  const rec = { id: newId(tournaments), type: 'img', name: 'img', data: dataURL, teams: [], matches: [], tours: 0, emblem: { icon: '', color: '#555555' } };
+  tournaments.push(rec);
+  return rec.id;
+}
+function gcImages() {                               // удаляем картинки, на которые никто не ссылается
+  const used = new Set();
+  const add = e => { if (e && e.imgId) used.add(e.imgId); };
+  teams.forEach(t => add(t.emblem));
+  tournaments.forEach(t => {
+    if (t.type === 'img') return;
+    add(t.emblem);
+    (t.teams || []).forEach(x => add(x.emblem));
+    if (t.type === 'khl-assets' && t.logos) Object.values(t.logos).forEach(v => { if (typeof v === 'number') used.add(v); });
+  });
+  if (tournaments.some(t => t.type === 'img' && !used.has(t.id))) {
+    tournaments = tournaments.filter(t => t.type !== 'img' || used.has(t.id));
+  }
+}
+// Инициалы для эмблемы-заглушки: «Ак Барс» -> АБ
+function iniOf(name) {
+  const w = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!w.length) return '';
+  return (w.length === 1 ? w[0].slice(0, 2) : w[0][0] + w[1][0]).toUpperCase();
+}
+function emblemHTML(e, size = 48) {
+  const src = e.imgId ? imgData(e.imgId) : e.img;
+  if (src) {
+    return `<div class="emblem img" style="width:${size}px;height:${size}px"><img src="${src}" alt=""></div>`;
+  }
+  const txt = e.icon || e.ini || '';
+  const fs = e.icon ? Math.round(size * 0.55) : Math.round(size * (txt.length > 2 ? 0.3 : 0.38));
+  return `<div class="emblem ${e.icon ? '' : 'ini'}" style="width:${size}px;height:${size}px;background:${e.color || '#5a5a64'};font-size:${fs}px">${esc(txt)}</div>`;
 }
 
 const COUNTRIES = [
@@ -124,17 +173,19 @@ const nameHTML = t => esc(t.name);
 // Название СО флагом справа: только списки команд («КОМАНДЫ», выбор команды)
 const listNameHTML = t => esc(t.name) + (flagOf(t) ? ` <span class="flag">${flagOf(t)}</span>` : '');
 
-// Картинка из галереи: вписываем в квадрат 96x96 и сохраняем как PNG (прозрачность сохраняется).
+// Картинка из галереи: вписываем в квадрат 256x256 и сохраняем как PNG (прозрачность сохраняется).
 // Заодно считаем «цвет команды» — средний цвет логотипа (он нужен для таблицы).
 function readImage(file, cb) {
   const r = new FileReader();
   r.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const S = 96;
+      const S = 256;
       const c = document.createElement('canvas');
       c.width = c.height = S;
       const g = c.getContext('2d');
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = 'high';
       const k = Math.min(S / img.width, S / img.height);
       const w = img.width * k, h = img.height * k;
       g.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
@@ -142,9 +193,9 @@ function readImage(file, cb) {
       try {
         const d = g.getImageData(0, 0, S, S).data;
         let R = 0, G = 0, B = 0, n = 0;
-        for (let i = 0; i < d.length; i += 4) {
-          if (d[i + 3] < 128) continue;                        // прозрачное пропускаем
-          if (d[i] > 235 && d[i + 1] > 235 && d[i + 2] > 235) continue;   // почти белое пропускаем
+        for (let i = 0; i < d.length; i += 16) {                 // каждый 4-й пиксель — этого достаточно
+          if (d[i + 3] < 128) continue;
+          if (d[i] > 235 && d[i + 1] > 235 && d[i + 2] > 235) continue;
           R += d[i]; G += d[i + 1]; B += d[i + 2]; n++;
         }
         if (n > 20) color = '#' + [R, G, B].map(v => Math.round(v / n).toString(16).padStart(2, '0')).join('');
@@ -204,30 +255,31 @@ function renderTeams() {
 bindSeg('teams-tabs', v => { teamsTab = v; renderTeams(); });
 
 // ---------- Создание команды ----------
-const newDraft = () => ({ icon: ICONS[0], color: COLORS[0], img: null, imgColor: null, tColor: null });
+const newDraft = () => ({ img: null, imgId: null, imgColor: null, dirtyImg: false, tColor: null, icon: null, circleColor: null });
 let draft = newDraft();
 let editingId = null;      // id редактируемой команды (null — создаём новую)
 let editorKind = 'club';   // тип команды в форме
+const DEFAULT_RATING = 65;
 
-$('team-country').innerHTML = '<option value="">Без флага</option>' +
-  COUNTRIES.map(([c, n]) => `<option value="${c}">${flagEmoji(c)} ${n}</option>`).join('');
+// Колёса выбора, как в будильнике на iPhone: рейтинг и флаг
+const wRating = makeWheel($('wheel-rating'), Array.from({ length: 100 }, (_, i) => ({ label: String(i), value: i })));
+const wCountry = makeWheel($('wheel-country'), [{ label: 'Без флага', value: '' }].concat(
+  COUNTRIES.map(([c, n]) => ({ label: `${flagEmoji(c)} ${n}`, value: c }))));
+
+// Цвет команды в таблице: выбранный вручную/пипеткой, иначе средний цвет логотипа
+const effColor = d => d.tColor || (d.img ? (d.imgColor || '#5a5a64') : (d.circleColor || '#5a5a64'));
+const draftEmblem = col => draft.img ? { img: draft.img, color: col }
+  : draft.icon ? { icon: draft.icon, color: draft.circleColor || col }
+  : { ini: iniOf($('team-name').value), color: col };
 
 function renderPickers() {
-  $('icon-grid').innerHTML = ICONS.map(i =>
-    `<div class="pick ${!draft.img && i === draft.icon ? 'selected' : ''}" data-icon="${i}">${i}</div>`).join('');
-  $('color-grid').innerHTML = COLORS.map(c =>
-    `<div class="pick ${!draft.img && c === draft.color ? 'selected' : ''}" data-color="${c}" style="background:${c}"></div>`).join('');
-  $('emblem-preview').innerHTML = emblemHTML(draft, 90);
-  $('team-img-clear').style.display = draft.img ? 'inline-block' : 'none';
+  const col = effColor(draft);
+  $('emblem-preview').innerHTML = emblemHTML(draftEmblem(col), 104);
+  $('team-img-clear').style.display = draft.img ? 'inline-flex' : 'none';
   drawPipette(); updateColorUI();
-  $('icon-grid').querySelectorAll('[data-icon]').forEach(el =>
-    el.addEventListener('click', () => { draft.icon = el.dataset.icon; draft.img = null; renderPickers(); }));
-  $('color-grid').querySelectorAll('[data-color]').forEach(el =>
-    el.addEventListener('click', () => { draft.color = el.dataset.color; draft.img = null; renderPickers(); }));
 }
 
 // ---------- Цвет команды в таблице: пипетка по логотипу ----------
-const effColor = d => d.tColor || (d.img ? (d.imgColor || '#5a5a64') : d.color);
 const pip = { logo: document.createElement('canvas'), tok: 0, cur: null, active: false };
 
 function drawPipette() {
@@ -246,6 +298,7 @@ function drawPipette() {
     const im = new Image();
     im.onload = () => {
       if (tok !== pip.tok) return;
+      g.imageSmoothingQuality = 'high';
       const k = Math.min(S / im.width, S / im.height);
       const w = im.width * k, h = im.height * k;
       g.drawImage(im, (S - w) / 2, (S - h) / 2, w, h);
@@ -253,11 +306,15 @@ function drawPipette() {
     };
     im.src = draft.img;
   } else {
-    g.fillStyle = draft.color;
+    // без логотипа показываем заглушку: круг с инициалами
+    const em = draftEmblem(effColor(draft));
+    g.fillStyle = em.color || '#5a5a64';
     g.beginPath(); g.arc(S / 2, S / 2, S * 0.4, 0, Math.PI * 2); g.fill();
-    g.font = Math.round(S * 0.4) + 'px -apple-system, "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+    const txt = em.icon || em.ini || '';
+    g.fillStyle = '#ffffff';
+    g.font = `800 ${Math.round(S * (em.icon ? 0.4 : 0.3))}px -apple-system, "Apple Color Emoji", "Segoe UI", sans-serif`;
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(draft.icon, S / 2, S / 2 + S * 0.03);
+    g.fillText(txt, S / 2, S / 2 + S * 0.02);
     paint();
   }
 }
@@ -286,7 +343,7 @@ function pipMove(ev) {
 }
 const pipEnd = commit => ev => {
   $('loupe').style.display = 'none';
-  if (commit && pip.active && pip.cur) { draft.tColor = pip.cur; updateColorUI(); }
+  if (commit && pip.active && pip.cur) { draft.tColor = pip.cur; renderPickers(); }
   pip.active = false; pip.cur = null;
 };
 $('pipette').addEventListener('pointerdown', ev => {
@@ -304,20 +361,25 @@ function updateColorUI() {
   $('tcolor-hex').textContent = draft.tColor ? col.toUpperCase() : 'автоматически';
   $('tcolor-auto').style.display = draft.tColor ? 'inline-block' : 'none';
   if (/^#[0-9a-f]{6}$/i.test(col)) $('team-color-input').value = col;
-  const emb = draft.img ? { img: draft.img, color: col } : { icon: draft.icon, color: draft.color };
   $('color-preview').innerHTML = `<div class="lt"><div class="lt-row solo">` +
-    ltPillHTML({ name: $('team-name').value.trim() || 'Команда', emblem: emb }, col, [25, 19, 5, 1, 39]) + `</div></div>`;
+    ltPillHTML({ name: $('team-name').value.trim() || 'Команда', emblem: draftEmblem(col) }, col, [25, 19, 5, 1, 39]) + `</div></div>`;
 }
-$('tcolor-auto').addEventListener('click', () => { draft.tColor = null; updateColorUI(); });
-$('team-color-input').addEventListener('input', e => { draft.tColor = e.target.value; updateColorUI(); });
-$('team-name').addEventListener('input', updateColorUI);
+$('tcolor-auto').addEventListener('click', () => { draft.tColor = null; renderPickers(); });
+$('team-color-input').addEventListener('input', e => { draft.tColor = e.target.value; renderPickers(); });
+$('team-name').addEventListener('input', renderPickers);
 
 $('team-img').addEventListener('change', e => {
   const f = e.target.files[0];
   e.target.value = '';
-  if (f) readImage(f, (url, col) => { draft.img = url; draft.imgColor = col; renderPickers(); });
+  if (f) readImage(f, (url, col) => {
+    draft.img = url; draft.imgColor = col; draft.imgId = null; draft.dirtyImg = true; draft.icon = null;
+    renderPickers();
+  });
 });
-$('team-img-clear').addEventListener('click', () => { draft.img = null; renderPickers(); });
+$('team-img-clear').addEventListener('click', () => {
+  draft.img = null; draft.imgId = null; draft.imgColor = null; draft.dirtyImg = false; draft.icon = null;
+  renderPickers();
+});
 
 // id = номер существующей команды (редактирование) или null (новая)
 function openTeamEditor(id) {
@@ -325,39 +387,46 @@ function openTeamEditor(id) {
   editingId = t ? t.id : null;
   editorKind = t ? kindOf(t) : teamsTab;
   const club = editorKind === 'club';
-  draft = t
-    ? { icon: t.emblem.icon || ICONS[0], color: t.emblem.img ? COLORS[0] : (t.emblem.color || COLORS[0]),
-        img: t.emblem.img || null, imgColor: t.emblem.img ? (t.emblem.color || null) : null, tColor: t.color || null }
-    : newDraft();
+  if (t) {
+    const e = t.emblem || {};
+    const src = e.imgId ? imgData(e.imgId) : (e.img || null);
+    draft = { img: src || null, imgId: e.imgId || null, imgColor: src ? (e.color || null) : null, dirtyImg: false,
+              tColor: t.color || null, icon: src ? null : (e.icon || null), circleColor: src ? null : (e.color || null) };
+  } else draft = newDraft();
   $('team-title').textContent = t ? (club ? 'ИЗМЕНИТЬ КЛУБ' : 'ИЗМЕНИТЬ СБОРНУЮ')
                                   : (club ? 'НОВЫЙ КЛУБ' : 'НОВАЯ СБОРНАЯ');
   $('country-box').style.display = club ? 'block' : 'none';
   $('team-name').value = t ? t.name : '';
-  $('team-rating').value = t ? t.rating : 75;
-  $('rating-value').textContent = $('team-rating').value;
-  $('team-country').value = t ? (t.country || '') : '';
-  renderPickers();
   showScreen('team-edit');
+  wRating.set(t ? t.rating : DEFAULT_RATING);
+  wCountry.setValue(t ? (t.country || '') : '');
+  renderPickers();
 }
 $('btn-new-team').addEventListener('click', () => openTeamEditor(null));
-
-$('team-rating').addEventListener('input', e => { $('rating-value').textContent = e.target.value; });
 
 $('btn-save-team').addEventListener('click', () => {
   const name = $('team-name').value.trim();
   if (!name) { alert('Введите название'); return; }
   const club = editorKind === 'club';
+  const col = effColor(draft);
+  let emblem;
+  if (draft.img) {
+    const id = draft.dirtyImg ? putImage(draft.img) : draft.imgId;
+    emblem = id ? { imgId: id, color: draft.imgColor || col } : { img: draft.img, color: draft.imgColor || col };
+  } else if (draft.icon) emblem = { icon: draft.icon, color: draft.circleColor || col };
+  else emblem = { ini: iniOf(name), color: col };
   const data = {
     name,
     color: draft.tColor || null,                       // цвет команды в таблице (null — автоматически)
-    rating: Number($('team-rating').value),
-    country: club ? $('team-country').value : '',
-    emblem: draft.img ? { img: draft.img, color: draft.imgColor || '#5a5a64' } : { icon: draft.icon, color: draft.color }
+    rating: Number(wRating.value()),
+    country: club ? wCountry.value() : '',
+    emblem
   };
   const existing = editingId == null ? null : teamById(editingId);
   if (existing) Object.assign(existing, data);          // изменение: id и тип остаются
   else teams.push({ id: newId(teams), kind: editorKind, ...data });
   saveTeams();
+  saveTournaments();                                    // картинки лежат рядом с турнирами
   teamsTab = editorKind;
   showScreen('teams');
 });
@@ -1134,7 +1203,7 @@ function renderTournaments() {
 // ---------- Создание турнира / плей-офф ----------
 // picked: выбранные команды (формат «вся лига»); conf: id -> конференция 0/1 (формат «конференции»)
 const newTD = () => ({
-  kind: 'tournament', preset: 'custom', icon: ICONS[0], color: COLORS[0], img: null,
+  kind: 'tournament', preset: 'custom', icon: '🏆', color: '#4a4a52', img: null, imgId: null, imgColor: null, dirtyImg: false,
   winPts: 3, format: 'league', picked: {}, conf: {}, tab: 'club', tours: 10,
   po: false, poN: 8, bo: 7, merge: true
 });
@@ -1142,30 +1211,25 @@ let td = newTD();
 const confNames = () => [$('te-conf0').value.trim() || 'Запад', $('te-conf1').value.trim() || 'Восток'];
 
 function renderTEPickers() {
-  $('te-icons').innerHTML = ICONS.map(i =>
-    `<div class="pick ${!td.img && i === td.icon ? 'selected' : ''}" data-ticon="${i}">${i}</div>`).join('');
-  $('te-colors').innerHTML = COLORS.map(c =>
-    `<div class="pick ${!td.img && c === td.color ? 'selected' : ''}" data-tcolor="${c}" style="background:${c}"></div>`).join('');
-  $('te-emblem').innerHTML = emblemHTML(td, 90);
-  $('te-img-clear').style.display = td.img ? 'inline-block' : 'none';
-  $('te-icons').querySelectorAll('[data-ticon]').forEach(el =>
-    el.addEventListener('click', () => { td.icon = el.dataset.ticon; td.img = null; renderTEPickers(); }));
-  $('te-colors').querySelectorAll('[data-tcolor]').forEach(el =>
-    el.addEventListener('click', () => { td.color = el.dataset.tcolor; td.img = null; renderTEPickers(); }));
+  $('te-emblem').innerHTML = emblemHTML(td.img ? { img: td.img, color: td.color } : { icon: td.icon, color: td.color }, 104);
+  $('te-img-clear').style.display = td.img ? 'inline-flex' : 'none';
 }
 $('te-img').addEventListener('change', e => {
   const f = e.target.files[0];
   e.target.value = '';
-  if (f) readImage(f, (url, col) => { td.img = url; td.imgColor = col; renderTEPickers(); });
+  if (f) readImage(f, (url, col) => { td.img = url; td.imgColor = col; td.imgId = null; td.dirtyImg = true; renderTEPickers(); });
 });
-$('te-img-clear').addEventListener('click', () => { td.img = null; renderTEPickers(); });
+$('te-img-clear').addEventListener('click', () => { td.img = null; td.imgId = null; td.dirtyImg = false; renderTEPickers(); });
+
+// Колёса выбора: число туров и число команд в плей-офф
+const wTours = makeWheel($('wheel-tours'), Array.from({ length: 400 }, (_, i) => ({ label: String(i + 1), value: i + 1 })), v => { td.tours = v; });
+const wPoN = makeWheel($('wheel-pon'), Array.from({ length: 63 }, (_, i) => ({ label: String(i + 2), value: i + 2 })), v => { td.poN = v; });
 
 // Показ и блокировка полей формы в зависимости от типа (турнир/плей-офф) и предустановки
 function syncTEForm() {
   const isPO = td.kind === 'playoff';
   const khl = td.preset === 'khl' && !isPO;
   $('te-title').textContent = isPO ? 'НОВЫЙ ПЛЕЙ-ОФФ' : 'НОВЫЙ ТУРНИР';
-  $('btn-create-tour').textContent = isPO ? 'СОЗДАТЬ ПЛЕЙ-ОФФ' : 'СОЗДАТЬ ТУРНИР';
   $('sec-preset').style.display = isPO ? 'none' : 'block';
   $('sec-tours').style.display = isPO ? 'none' : 'block';
   $('po-toggle-box').style.display = isPO ? 'none' : 'block';
@@ -1177,14 +1241,14 @@ function syncTEForm() {
   fb[0].textContent = isPO ? 'ОДНА СЕТКА' : 'ВСЯ ЛИГА';
   fb[1].textContent = 'КОНФЕРЕНЦИИ';
   $('lbl-po-n').textContent = td.format === 'conf' ? 'Сколько команд от каждой конференции' : 'Сколько команд выходит в плей-офф';
-  $('te-tours').disabled = khl;
+  wTours.setLocked(khl);
   $('te-format').classList.toggle('locked', khl);
   $('te-pts').classList.toggle('locked', khl);
-  if (!khl) $('te-tours').value = td.tours;
+  if (!khl) wTours.setValue(td.tours);
   setSeg('te-kind', td.kind); setSeg('te-preset', td.preset); setSeg('te-format', td.format);
   setSeg('te-pts', String(td.winPts)); setSeg('te-po', td.po ? 'on' : 'off'); setSeg('te-bo', String(td.bo));
   setSeg('te-merge', td.merge ? 'on' : 'off');
-  $('te-po-n').value = td.poN;
+  wPoN.setValue(td.poN);
   renderTETeams();
 }
 
@@ -1202,7 +1266,7 @@ function renderTETeams() {
   const khl = td.preset === 'khl' && td.kind === 'tournament';
   if (khl) {
     const tours = khlTours(n0 + n1, n0, n1);
-    $('te-tours').value = tours || '';
+    if (tours) wTours.setValue(Math.min(tours, 400));
     $('preset-note').textContent = 'КХЛ: 4 матча с командами своей конференции и 2 матча с командами другой. ' +
       (tours ? `Туров при таком составе: ${tours}.` : 'Распределите команды по конференциям — число туров посчитается само.');
   } else {
@@ -1252,8 +1316,6 @@ bindSeg('te-po', v => { td.po = v === 'on'; syncTEForm(); });
 bindSeg('te-bo', v => { td.bo = Number(v); });
 bindSeg('te-merge', v => { td.merge = v === 'on'; });
 bindSeg('te-tabs', v => { td.tab = v; renderTETeams(); });
-$('te-tours').addEventListener('input', e => { td.tours = Number(e.target.value) || 0; });
-$('te-po-n').addEventListener('input', e => { td.poN = Number(e.target.value) || 0; });
 $('te-conf0').addEventListener('input', renderTETeams);
 $('te-conf1').addEventListener('input', renderTETeams);
 
@@ -1295,7 +1357,7 @@ $('btn-create-tour').addEventListener('click', () => {
   const c0 = ids.filter(i => td.conf[i] === 0).length, c1 = ids.length - c0;
   if (isConf && (c0 < 2 || c1 < 2)) { alert('В каждой конференции должно быть минимум 2 команды'); return; }
 
-  let tours = Math.floor(Number($('te-tours').value));
+  let tours = wTours.value();
   if (khl) tours = khlTours(ids.length, c0, c1);
   if (!isPO && !(tours >= 1 && tours <= 400)) { alert('Количество туров: от 1 до 400'); return; }
   if (!isPO && td.po) {
@@ -1308,8 +1370,13 @@ $('btn-create-tour').addEventListener('click', () => {
     return { id: x.id, name: x.name, rating: x.rating, kind: kindOf(x), country: x.country || '',
              emblem: { ...x.emblem }, color: x.color || null, conf: isConf ? td.conf[id] : 0 };
   });
+  let tEmblem = { icon: td.icon, color: td.color };
+  if (td.img) {
+    const imgId = td.dirtyImg ? putImage(td.img) : td.imgId;
+    tEmblem = imgId ? { imgId, color: td.imgColor || '#5a5a64' } : { img: td.img, color: td.imgColor || '#5a5a64' };
+  }
   const base = {
-    id: newId(tournaments), name, emblem: td.img ? { img: td.img, color: td.imgColor || '#5a5a64' } : { icon: td.icon, color: td.color },
+    id: newId(tournaments), name, emblem: tEmblem,
     winPts: td.winPts, format: td.format, confNames: confNames(), teams: snap
   };
   let t;
@@ -1350,12 +1417,18 @@ function metaRecord(type) {
   return r;
 }
 const clubById = id => KHL_CLUBS.find(c => c.id === id) || null;
+// Рейтинг клуба: из рейтингов игроков, если состав уже есть; иначе ориентировочный
+function clubRating(c) {
+  const R = typeof KHL_ROSTERS !== 'undefined' ? KHL_ROSTERS[c.id] : null;
+  return R ? Math.round(rosterRating(R.players)) : c.rating;
+}
 const confName = c => c.conf === 'west' ? 'Западная конференция' : 'Восточная конференция';
 
 // Эмблема клуба: загруженная из галереи > файл assets/clubs/<id>.png > значок с буквами клуба
 function clubEmblemHTML(c, size = 48) {
   const a = getAssets();
-  const src = (a && a.logos && a.logos[c.id]) || `assets/clubs/${c.id}.png`;
+  const lv = a && a.logos && a.logos[c.id];
+  const src = (typeof lv === 'number' ? imgData(lv) : lv) || `assets/clubs/${c.id}.png`;
   return `<div class="club-emb" style="width:${size}px;height:${size}px;--c:${c.color}">` +
     `<span class="ph" style="font-size:${Math.round(size * 0.3)}px">${esc(c.short)}</span>` +
     `<img src="${src}" alt="" onload="this.parentNode.classList.add('hasimg')" onerror="this.remove()"></div>`;
@@ -1364,10 +1437,10 @@ function clubEmblemHTML(c, size = 48) {
 function renderCareerPick() {
   const box = $('career-clubs');
   box.innerHTML = ['west', 'east'].map(conf => {
-    const list = KHL_CLUBS.filter(c => c.conf === conf).sort((a, b) => b.rating - a.rating);
+    const list = KHL_CLUBS.filter(c => c.conf === conf).sort((a, b) => clubRating(b) - clubRating(a));
     return `<h3 class="conf-title">${conf === 'west' ? 'ЗАПАД' : 'ВОСТОК'}</h3>` + list.map(c =>
       `<div class="team-row pick-row" data-club="${c.id}">${clubEmblemHTML(c, 44)}` +
-      `<div class="info"><div class="name">${esc(c.name)}</div><div class="rating">${esc(c.city)} · рейтинг ${c.rating}</div></div>` +
+      `<div class="info"><div class="name">${esc(c.name)}</div><div class="rating">${esc(c.city)} · рейтинг ${clubRating(c)}</div></div>` +
       `<span class="chev">›</span></div>`).join('');
   }).join('');
   box.querySelectorAll('[data-club]').forEach(el => el.addEventListener('click', () => openClubConfirm(el.dataset.club)));
@@ -1379,7 +1452,7 @@ function openClubConfirm(id) {
   if (!c) return;
   pendingClub = id;
   $('cc-body').innerHTML = `<div class="sheet-emb">${clubEmblemHTML(c, 96)}</div><h2>${esc(c.name)}</h2>` +
-    `<p class="note">${esc(c.city)} · ${confName(c)}<br>Рейтинг клуба: ${c.rating}</p>`;
+    `<p class="note">${esc(c.city)} · ${confName(c)}<br>Рейтинг клуба: ${clubRating(c)}</p>`;
   $('career-confirm').classList.add('open');
 }
 $('cc-cancel').addEventListener('click', () => $('career-confirm').classList.remove('open'));
@@ -1404,7 +1477,7 @@ function renderCareer() {
     `<button class="hero-emb" id="hero-emb">${clubEmblemHTML(c, 112)}<span class="cam">📷</span></button>` +
     `<div class="hero-name">${esc(c.name)}</div>` +
     `<div class="hero-sub">${esc(c.city)} · ${confName(c)}</div>` +
-    `<div class="hero-chips"><span>Сезон ${esc(cr.season || SEASON_LABEL)}</span><span>Рейтинг клуба ${c.rating}</span></div>` +
+    `<div class="hero-chips"><span>Сезон ${esc(cr.season || SEASON_LABEL)}</span><span>Рейтинг клуба ${clubRating(c)}</span></div>` +
     `<p class="note">Нажмите на эмблему, чтобы загрузить настоящую из галереи.` +
     (hasUpload ? ` <button class="linkbtn inline" id="hero-emb-clear">Убрать загруженную</button>` : '') + `</p></div>`;
   $('hero-emb').addEventListener('click', () => $('career-logo-input').click());
@@ -1428,7 +1501,7 @@ $('career-logo-input').addEventListener('change', e => {
   readImage(f, url => {
     const rec = metaRecord('khl-assets');
     rec.logos = rec.logos || {};
-    rec.logos[cr.clubId] = url;
+    rec.logos[cr.clubId] = putImage(url);
     saveTournaments();
     renderCareer();
   });
@@ -1459,7 +1532,7 @@ function rosterRating(players) {
   const g = top('G', 1)[0] || 0;
   return 0.45 * avg(top('F', 12)) + 0.30 * avg(top('D', 6)) + 0.25 * g;
 }
-const ratingClass = r => r >= 85 ? 'r-gold' : r >= 80 ? 'r-green' : r >= 70 ? 'r-blue' : 'r-gray';
+const ratingClass = r => r >= 80 ? 'r-gold' : r >= 75 ? 'r-green' : r >= 70 ? 'r-blue' : 'r-gray';
 // Фото игрока: assets/players/<клуб>/<slug>.jpg, затем .png; нет файла — круг с инициалами
 function playerPhotoHTML(club, p, size = 48) {
   const base = `assets/players/${club.id}/${p.slug}`;
@@ -1514,7 +1587,7 @@ window.App = {
 
 // ---------- Нажатия: волна света под пальцем ----------
 const RIPPLE_SEL = '.menu-btn, .team-row.pick-row, .tile.ready, .qm-card, .seg button, .chip, .back, .conf-btn, ' +
-  '.gbtn button, .speed button, label.upload-btn, .mini, .pick, .tour-nav button, .menu-top button';
+  '.gbtn button, .speed button, label.upload-btn, .mini, .pick, .tour-nav button, .menu-top button, .top-btn';
 document.addEventListener('pointerdown', e => {
   const el = e.target.closest && e.target.closest(RIPPLE_SEL);
   if (!el || el.disabled) return;
@@ -1568,38 +1641,54 @@ async function loadPatchSiteTime() {
   return patchSiteTime;
 }
 let patchOpen = false;
-function renderPatch() {
+// Записи патч-ноута. Версию, дату и время можно писать самому (поля version, date, time);
+// если поле не заполнено — версия считается по порядку, а дата и время подставляются автоматически.
+function patchEntries() {
   const notes = typeof PATCH_NOTES !== 'undefined' ? PATCH_NOTES : [];
   const N = notes.length;
+  return notes.map((e, i) => {
+    const o = Array.isArray(e) ? { changes: e } : (e || {});
+    return {
+      key: String(N - i),                                              // внутренний номер по порядку (для автоматического времени)
+      version: o.version != null && String(o.version).trim() !== '' ? String(o.version).trim() : String(N - i),
+      date: String(o.date || '').trim(), time: String(o.time || '').trim(),
+      changes: o.changes || []
+    };
+  });
+}
+function renderPatch() {
+  const entries = patchEntries();
   const rec = tournaments.find(t => t.type === 'patch-log');
   const times = (rec && rec.times) || {};
-  const card = (lines, i) => {
-    const v = N - i, tm = times[v] ? fmtDateTime(times[v]) : '';
-    return `<div class="patch-card ${i === 0 ? 'latest' : ''}"><div class="pc-head"><b>Версия ${v}</b><span>${tm}</span></div>` +
-      `<ul>${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul></div>`;
+  const card = (e, i) => {
+    const manual = e.date || e.time;
+    const tm = manual ? [e.date, e.time].filter(Boolean).join(' ') : (times[e.key] ? fmtDateTime(times[e.key]) : '');
+    return `<div class="patch-card ${i === 0 ? 'latest' : ''}"><div class="pc-head"><b>Версия ${esc(e.version)}</b><span>${esc(tm)}</span></div>` +
+      `<ul>${e.changes.map(l => `<li>${esc(l)}</li>`).join('')}</ul></div>`;
   };
-  const shown = patchOpen ? notes : notes.slice(0, 1);
-  $('patch-list').innerHTML = shown.map((l, i) => card(l, i)).join('');
+  const shown = patchOpen ? entries : entries.slice(0, 1);
+  $('patch-list').innerHTML = shown.map((e, i) => card(e, i)).join('');
   $('patch-more').textContent = patchOpen ? 'Скрыть прошлые версии' : 'Показать прошлые версии';
-  $('patch-more').style.display = N > 1 ? 'block' : 'none';
+  $('patch-more').style.display = entries.length > 1 ? 'block' : 'none';
 }
 $('patch-more').addEventListener('click', () => { patchOpen = !patchOpen; renderPatch(); });
 
 async function renderMenuInfo() {
-  const N = patchVersion();
-  $('app-ver').textContent = 'Версия ' + N;
+  const entries = patchEntries();
+  const N = entries.length;
+  $('app-ver').textContent = N ? 'Версия ' + entries[0].version : '';
   if (typeof Engine === 'undefined' || Engine.VERSION !== 2) {
     $('app-warn').textContent = '⚠ Файл engine.js устарел. Загрузите новую версию engine.js на GitHub.';
   }
   renderPatch();
-  if (!N) return;
+  if (!N || entries[0].date || entries[0].time) return;            // дата и время записаны вручную — автоматика не нужна
   const rec0 = tournaments.find(t => t.type === 'patch-log');
-  if (rec0 && rec0.times && rec0.times[N]) return;               // время этой версии уже записано
+  if (rec0 && rec0.times && rec0.times[entries[0].key]) return;     // время этой версии уже записано
   const site = await loadPatchSiteTime();
   const rec = metaRecord('patch-log');
   rec.times = rec.times || {};
-  if (!rec.times[N]) {
-    rec.times[N] = site || new Date().toISOString();
+  if (!rec.times[entries[0].key]) {
+    rec.times[entries[0].key] = site || new Date().toISOString();
     saveTournaments();
   }
   renderPatch();
