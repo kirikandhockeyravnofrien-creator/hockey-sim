@@ -255,7 +255,7 @@ function renderTeams() {
 bindSeg('teams-tabs', v => { teamsTab = v; renderTeams(); });
 
 // ---------- Создание команды ----------
-const newDraft = () => ({ img: null, imgId: null, imgColor: null, dirtyImg: false, tColor: null, icon: null, circleColor: null });
+const newDraft = () => ({ img: null, imgId: null, imgColor: null, dirtyImg: false, tColor: null, icon: null, circleColor: null, ptsText: 'white' });
 let draft = newDraft();
 let editingId = null;      // id редактируемой команды (null — создаём новую)
 let editorKind = 'club';   // тип команды в форме
@@ -276,6 +276,7 @@ function renderPickers() {
   const col = effColor(draft);
   $('emblem-preview').innerHTML = emblemHTML(draftEmblem(col), 104);
   $('team-img-clear').style.display = draft.img ? 'inline-flex' : 'none';
+  setSeg('pts-seg', draft.ptsText);
   drawPipette(); updateColorUI();
 }
 
@@ -362,9 +363,10 @@ function updateColorUI() {
   $('tcolor-auto').style.display = draft.tColor ? 'inline-block' : 'none';
   if (/^#[0-9a-f]{6}$/i.test(col)) $('team-color-input').value = col;
   $('color-preview').innerHTML = `<div class="lt"><div class="lt-row solo">` +
-    ltPillHTML({ name: $('team-name').value.trim() || 'Команда', emblem: draftEmblem(col) }, col, [25, 19, 5, 1, 39]) + `</div></div>`;
+    ltPillHTML({ name: $('team-name').value.trim() || 'Команда', emblem: draftEmblem(col), ptsText: draft.ptsText }, col, [25, 19, 5, 1, 39]) + `</div></div>`;
 }
 $('tcolor-auto').addEventListener('click', () => { draft.tColor = null; renderPickers(); });
+bindSeg('pts-seg', v => { draft.ptsText = v; renderPickers(); });
 $('team-color-input').addEventListener('input', e => { draft.tColor = e.target.value; renderPickers(); });
 $('team-name').addEventListener('input', renderPickers);
 
@@ -391,7 +393,8 @@ function openTeamEditor(id) {
     const e = t.emblem || {};
     const src = e.imgId ? imgData(e.imgId) : (e.img || null);
     draft = { img: src || null, imgId: e.imgId || null, imgColor: src ? (e.color || null) : null, dirtyImg: false,
-              tColor: t.color || null, icon: src ? null : (e.icon || null), circleColor: src ? null : (e.color || null) };
+              tColor: t.color || null, icon: src ? null : (e.icon || null), circleColor: src ? null : (e.color || null),
+              ptsText: t.ptsText === 'black' ? 'black' : 'white' };
   } else draft = newDraft();
   $('team-title').textContent = t ? (club ? 'ИЗМЕНИТЬ КЛУБ' : 'ИЗМЕНИТЬ СБОРНУЮ')
                                   : (club ? 'НОВЫЙ КЛУБ' : 'НОВАЯ СБОРНАЯ');
@@ -418,6 +421,7 @@ $('btn-save-team').addEventListener('click', () => {
   const data = {
     name,
     color: draft.tColor || null,                       // цвет команды в таблице (null — автоматически)
+    ptsText: draft.ptsText,                            // цвет цифр очков в таблице: white / black
     rating: Number(wRating.value()),
     country: club ? wCountry.value() : '',
     emblem
@@ -726,7 +730,8 @@ function getTables(t) {
 function ltPillHTML(team, color, v) {
   return `<div class="lt-pill" style="--c:${color}"><span class="lt-emb">${emblemHTML(team.emblem, 28)}</span>` +
     `<span class="lt-name">${esc(team.name)}</span>` +
-    `<span>${v[0]}</span><span>${v[1]}</span><span>${v[2]}</span><span>${v[3]}</span><b class="lt-pts">${v[4]}</b></div>`;
+    `<span>${v[0]}</span><span>${v[1]}</span><span>${v[2]}</span><span>${v[3]}</span>` +
+    `<b class="lt-pts" style="color:${team.ptsText === 'black' ? '#000;text-shadow:none' : '#fff'}">${v[4]}</b></div>`;
 }
 // Таблица в стиле КХЛ: И — игры, В — победы (в т.ч. в ОТ и по буллитам), П — поражения в основное время,
 // ОТ — поражения в ОТ и по буллитам, ОЧКИ. cut — сколько верхних команд выходят в плей-офф (после них разрыв)
@@ -1368,7 +1373,7 @@ $('btn-create-tour').addEventListener('click', () => {
   const snap = ids.map(id => {
     const x = teamById(id);
     return { id: x.id, name: x.name, rating: x.rating, kind: kindOf(x), country: x.country || '',
-             emblem: { ...x.emblem }, color: x.color || null, conf: isConf ? td.conf[id] : 0 };
+             emblem: { ...x.emblem }, color: x.color || null, ptsText: x.ptsText || 'white', conf: isConf ? td.conf[id] : 0 };
   });
   let tEmblem = { icon: td.icon, color: td.color };
   if (td.img) {
@@ -1623,11 +1628,11 @@ setTimeout(() => {
 // Версия = число записей в patchnotes.js. Дата и время = момент, когда файл патч-ноута появился на сайте
 // (заголовок Last-Modified); первое увиденное время сохраняется в облаке рядом с остальными данными.
 const patchVersion = () => (typeof PATCH_NOTES !== 'undefined' ? PATCH_NOTES.length : 0);
-const fmtDateTime = iso => {
+const fmtDateTime = iso => {                       // только дата, без времени
   const d = new Date(iso);
   if (isNaN(d)) return '';
   const p = n => String(n).padStart(2, '0');
-  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`;
 };
 let patchSiteTime;        // undefined — ещё не узнавали; null — узнать не удалось
 async function loadPatchSiteTime() {
@@ -1651,7 +1656,7 @@ function patchEntries() {
     return {
       key: String(N - i),                                              // внутренний номер по порядку (для автоматического времени)
       version: o.version != null && String(o.version).trim() !== '' ? String(o.version).trim() : String(N - i),
-      date: String(o.date || '').trim(), time: String(o.time || '').trim(),
+      date: String(o.date || '').trim(),
       changes: o.changes || []
     };
   });
@@ -1661,8 +1666,7 @@ function renderPatch() {
   const rec = tournaments.find(t => t.type === 'patch-log');
   const times = (rec && rec.times) || {};
   const card = (e, i) => {
-    const manual = e.date || e.time;
-    const tm = manual ? [e.date, e.time].filter(Boolean).join(' ') : (times[e.key] ? fmtDateTime(times[e.key]) : '');
+    const tm = e.date || (times[e.key] ? fmtDateTime(times[e.key]) : '');
     return `<div class="patch-card ${i === 0 ? 'latest' : ''}"><div class="pc-head"><b>Версия ${esc(e.version)}</b><span>${esc(tm)}</span></div>` +
       `<ul>${e.changes.map(l => `<li>${esc(l)}</li>`).join('')}</ul></div>`;
   };
@@ -1681,7 +1685,7 @@ async function renderMenuInfo() {
     $('app-warn').textContent = '⚠ Файл engine.js устарел. Загрузите новую версию engine.js на GitHub.';
   }
   renderPatch();
-  if (!N || entries[0].date || entries[0].time) return;            // дата и время записаны вручную — автоматика не нужна
+  if (!N || entries[0].date) return;                               // дата записана вручную — автоматика не нужна
   const rec0 = tournaments.find(t => t.type === 'patch-log');
   if (rec0 && rec0.times && rec0.times[entries[0].key]) return;     // время этой версии уже записано
   const site = await loadPatchSiteTime();

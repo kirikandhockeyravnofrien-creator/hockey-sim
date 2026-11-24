@@ -11,14 +11,13 @@
   <meta name="apple-mobile-web-app-title" content="Pro Hockey Sim">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#000000">
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <div id="splash" class="splash">
     <div class="splash-orb o1"></div><div class="splash-orb o2"></div><div class="splash-orb o3"></div>
     <div class="splash-center">
       <div class="splash-logo"><img src="icons/icon-192.png" alt=""><span class="ring"></span></div>
-      <div class="splash-title">PRO HOCKEY SIM</div>
       <div class="splash-bar"><i></i></div>
       <div class="splash-msg" id="splash-msg">Загрузка…</div>
     </div>
@@ -110,6 +109,11 @@
         <label class="upload-btn" for="team-color-input">Выбрать вручную</label>
         <input id="team-color-input" class="vh" type="color" value="#5a5a64">
         <button class="mini" id="tcolor-auto" style="display:none">Авто</button>
+      </div>
+      <label>Цвет очков в таблице</label>
+      <div class="seg" id="pts-seg">
+        <button data-v="white" class="active">БЕЛЫЙ</button>
+        <button data-v="black">ЧЁРНЫЙ</button>
       </div>
       <div id="color-preview"></div>
       <div style="height:24px"></div>
@@ -357,13 +361,13 @@
     </div>
 
   </div>
-  <script src="wheel.js?v=11"></script>
-  <script src="engine.js?v=11"></script>
-  <script src="khl.js?v=11"></script>
-  <script src="rosters.js?v=11"></script>
+  <script src="wheel.js?v=12"></script>
+  <script src="engine.js?v=12"></script>
+  <script src="khl.js?v=12"></script>
+  <script src="rosters.js?v=12"></script>
   <script src="patchnotes.js"></script>
-  <script src="app.js?v=11"></script>
-  <script src="puck.js?v=11"></script>
+  <script src="app.js?v=12"></script>
+  <script src="puck.js?v=12"></script>
   <script type="module" src="cloud.js"></script>
 </body>
 </html>
